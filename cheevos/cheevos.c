@@ -1,5 +1,5 @@
 /*  RetroArch - A frontend for libretro.
- *  Copyright (C) 2015-2016 - Andre Leiradella
+ *  Copyright (C) 2015-2018 - Andre Leiradella
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -288,6 +288,7 @@ static cheevos_locals_t cheevos_locals =
 bool cheevos_loaded = false;
 bool cheevos_hardcore_active = false;
 bool cheevos_hardcore_paused = false;
+bool cheevos_state_loaded_flag = false;
 int cheats_are_enabled = 0;
 int cheats_were_enabled = 0;
 
@@ -2080,7 +2081,7 @@ void cheevos_populate_menu(void *data)
    cheevo_t *cheevo              = cheevos_locals.core.cheevos;
    end                           = cheevo + cheevos_locals.core.count;
 
-   if(settings->bools.cheevos_enable && settings->bools.cheevos_hardcore_mode_enable
+   if(settings->bools.cheevos_enable && settings->bools.cheevos_hardcore_mode_enable 
       && cheevos_loaded)
    {
       if (!cheevos_hardcore_paused)
@@ -3389,9 +3390,9 @@ found:
 
                /* Save token to config and clear pass on success */
                *coro->settings->arrays.cheevos_password = '\0';
-               strlcpy(
+               strncpy(
                      coro->settings->arrays.cheevos_token,
-                     cheevos_locals.token, sizeof(coro->settings->arrays.cheevos_token)
+                     cheevos_locals.token, sizeof(cheevos_locals.token)
                );
                CORO_RET();
             }

@@ -56,6 +56,7 @@
 
 #define SAVE_STATE_CHUNK 4096
 
+static bool save_state_in_background = false;
 static struct string_list *task_save_files = NULL;
 
 struct ram_type
@@ -613,7 +614,7 @@ static void task_save_handler(retro_task_t *task)
    if ( state->data )
    {
       written         = (int)intfstream_write(state->file,
-            (uint8_t*)state->data + state->written, remaining);
+         (uint8_t*)state->data + state->written, remaining);
    }
    else
    {
@@ -820,12 +821,12 @@ static void task_load_handler(retro_task_t *task)
    {
       if (state->autoload)
       {
-         char *msg = (char*)malloc(1024 * sizeof(char));
+         char *msg = (char*)malloc(8192 * sizeof(char));
 
          msg[0] = '\0';
 
          snprintf(msg,
-               1024 * sizeof(char),
+               8192 * sizeof(char),
                "%s \"%s\" %s.",
                msg_hash_to_str(MSG_AUTOLOADING_SAVESTATE_FROM),
                state->path,
@@ -1174,7 +1175,6 @@ error:
       free(task);
 }
 
-
 /**
  * content_save_state:
  * @path      : path of saved state that shall be written to.
@@ -1185,12 +1185,37 @@ error:
  **/
 bool content_save_state(const char *path, bool save_to_disk, bool autosave)
 {
-   //retro_ctx_serialize_info_t serial_info;
    retro_ctx_size_info_t info;
-   bool ret    = false;
    void *data  = NULL;
 
    core_serialize_size(&info);
+
+   if (info.size == 0)
+      return false;
+
+   if ( !save_state_in_background )
+   {
+      RARCH_LOG("%s: \"%s\".\n",
+            msg_hash_to_str(MSG_SAVING_STATE),
+            path);
+
+      data = get_serialized_data(path, info.size) ;
+
+
+      if (!data)
+      {
+         RARCH_ERR("%s \"%s\".\n",
+               msg_hash_to_str(MSG_FAILED_TO_SAVE_STATE_TO),
+               path);
+         return false;
+      }
+
+      RARCH_LOG("%s: %d %s.\n",
+            msg_hash_to_str(MSG_STATE_SIZE),
+            (int)info.size,
+            msg_hash_to_str(MSG_BYTES));
+
+   }
 
    if (save_to_disk)
    {
@@ -1209,7 +1234,9 @@ bool content_save_state(const char *path, bool save_to_disk, bool autosave)
    }
    else
    {
-      data = get_serialized_data(path, info.size) ;
+      if ( data == NULL )
+         data = get_serialized_data(path, info.size) ;
+
       if ( data == NULL )
       {
          RARCH_ERR("%s \"%s\".\n",
@@ -1563,4 +1590,9 @@ void path_init_savefile_new(void)
 void *savefile_ptr_get(void)
 {
    return task_save_files;
+}
+
+void set_save_state_in_background(bool state)
+{
+   save_state_in_background = state ;
 }

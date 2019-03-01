@@ -87,14 +87,12 @@ static struct ad_packet ad_packet_buffer;
 static struct netplay_host_list discovered_hosts;
 static size_t discovered_hosts_allocated;
 
-// QuyenNC add start
 static struct netplay_room netplay_host_room = {0};
 
 struct netplay_room* netplay_get_host_room(void)
 {
    return &netplay_host_room;
 }
-// QuyenNC add end
 
 /** Initialize Netplay discovery (client) */
 bool init_netplay_discovery(void)

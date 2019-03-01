@@ -36,13 +36,14 @@
 #include "../../core.h"
 #include "../../retroarch.h"
 #include "../../tasks/tasks_internal.h"
+#include ".././verbosity.h"
 
 #ifdef HAVE_METAL
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
 #endif
 
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+#if !((defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__))))
 @interface WindowListener : NSResponder<NSWindowDelegate>
 @end
 
@@ -74,7 +75,7 @@ id<ApplePlatform> apple_platform;
    apple_view_type_t _vt;
    NSView* _renderView;
    id _sleepActivity;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+#if !(defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__)))
    WindowListener *_listener;
 #endif
 }
@@ -255,9 +256,7 @@ static char** waiting_argv;
 {
    unsigned i;
    apple_platform   = self;
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
-   self.window.collectionBehavior = NSWindowCollectionBehaviorFullScreenPrimary;
-#else
+
    SEL selector     = NSSelectorFromString(BOXSTRING("setCollectionBehavior:"));
    SEL fsselector   = NSSelectorFromString(BOXSTRING("toggleFullScreen:"));
 
@@ -266,14 +265,13 @@ static char** waiting_argv;
        if ([self.window respondsToSelector:fsselector])
           [self.window setCollectionBehavior:NS_WINDOW_COLLECTION_BEHAVIOR_FULLSCREEN_PRIMARY];
    }
-#endif
    
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+#if !(defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__)))
    _listener = [WindowListener new];
 #endif
    
    [self.window setAcceptsMouseMovedEvents: YES];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+#if !(defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__)))
    [self.window setNextResponder:_listener];
    self.window.delegate = _listener;
 #endif
@@ -294,13 +292,13 @@ static char** waiting_argv;
 
    waiting_argc = 0;
    
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
    [self.window makeMainWindow];
    [self.window makeKeyWindow];
-#endif
    
    [self performSelectorOnMainThread:@selector(rarch_main) withObject:nil waitUntilDone:NO];
 }
+
+#pragma mark - ApplePlatform
 
 - (void)setViewType:(apple_view_type_t)vt {
    if (vt == _vt) {
@@ -315,9 +313,7 @@ static char** waiting_argv;
       _renderView.wantsLayer = NO;
       _renderView.layer = nil;
       [_renderView removeFromSuperview];
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
       self.window.contentView = nil;
-#endif
       _renderView = nil;
    }
    
@@ -346,16 +342,11 @@ static char** waiting_argv;
    }
    
    _renderView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+   [_renderView setFrame: [[self.window contentView] bounds]];
    
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-   _renderView.frame = self.window.contentView.bounds;
    self.window.contentView = _renderView;
+#if !(defined(__MACH__) && (defined(__ppc__) || defined(__ppc64__)))
    [self.window.contentView setNextResponder:_listener];
-#else
-   /* TODO/FIXME - Aussiebloke - we need a workaround for OSX 10.5 for self.window.contentView.bounds -
-	* error - request for member 'bounds' in something not a structure or union. */
-   [self.window.contentView addSubview:_renderView];
-   [self.window makeFirstResponder:_renderView];
 #endif
 }
 
@@ -372,7 +363,7 @@ static char** waiting_argv;
 }
 
 - (void)setVideoMode:(gfx_ctx_mode_t)mode {
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+#ifdef HAVE_METAL
    BOOL isFullScreen = (self.window.styleMask & NSFullScreenWindowMask) == NSFullScreenWindowMask;
    if (mode.fullscreen && !isFullScreen)
    {
@@ -386,12 +377,10 @@ static char** waiting_argv;
    }
    
    if (mode.width > 0)
-#endif
    {
       // HACK(sgc): ensure MTKView posts a drawable resize event
       [self.window setContentSize:NSMakeSize(mode.width-1, mode.height)];
    }
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
    [self.window setContentSize:NSMakeSize(mode.width, mode.height)];
 #endif
 }
@@ -751,7 +740,7 @@ static void *ui_companion_cocoa_init(void)
 static void ui_companion_cocoa_event_command(void *data, enum event_command cmd)
 {
    (void)data;
-   command_event(cmd, NULL);
+   (void)cmd;
 }
 
 static void ui_companion_cocoa_notify_list_pushed(void *data,
@@ -775,11 +764,11 @@ ui_companion_driver_t ui_companion_cocoa = {
    ui_companion_cocoa_event_command,
    ui_companion_cocoa_notify_content_loaded,
    ui_companion_cocoa_notify_list_pushed,
-   NULL,
-   NULL,
-   NULL,
+   NULL, /* notify_refresh */
+   NULL, /* msg_queue_push */
+   NULL, /* render_messagebox */
    ui_companion_cocoa_get_main_window,
-   NULL,
+   NULL, /* log_msg */
    &ui_browser_window_cocoa,
    &ui_msg_window_cocoa,
    &ui_window_cocoa,

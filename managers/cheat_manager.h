@@ -20,6 +20,8 @@
 #include <boolean.h>
 #include <retro_common_api.h>
 
+#include "../setting_list.h"
+
 RETRO_BEGIN_DECLS
 
 
@@ -73,10 +75,13 @@ enum cheat_rumble_type
    RUMBLE_TYPE_EQ_VALUE,
    RUMBLE_TYPE_NEQ_VALUE,
    RUMBLE_TYPE_LT_VALUE,
-   RUMBLE_TYPE_GT_VALUE
+   RUMBLE_TYPE_GT_VALUE,
+   RUMBLE_TYPE_INCREASE_BY_VALUE,
+   RUMBLE_TYPE_DECREASE_BY_VALUE
 };
 
-#define CHEAT_CODE_SCRATCH_SIZE 100
+/* Some codes are ridiculously large - over 10000 bytes */
+#define CHEAT_CODE_SCRATCH_SIZE 16*1024
 #define CHEAT_DESC_SCRATCH_SIZE 255
 
 struct item_cheat
@@ -127,6 +132,23 @@ struct item_cheat
    unsigned int rumble_secondary_strength ; /* 0-65535 */
    unsigned int rumble_secondary_duration ; /* in milliseconds */
    retro_time_t rumble_secondary_end_time ; /* clock value for when rumbling should stop */
+
+   /*
+    * The repeat_ variables allow for a single cheat code to affect multiple memory addresses.
+    * repeat_count - the number of times the cheat code should be applied
+    * repeat_add_to_value - every iteration of repeat_count will have this amount added to item_cheat.value
+    * repeat_add_to_address - every iteration of repeat_count will have this amount added to item_cheat.address
+    *
+    * Note that repeat_add_to_address represents the number of "memory_search_size" blocks to add to
+    * item_cheat.address.  If memory_seach_size is 16-bits and repeat_add_to_address is 2, then item_cheat.address
+    * will be increased by 4 bytes 2*(16-bits) for every iteration.
+    *
+    * This is a cheating structure used for codes like unlocking all levels, giving yourself 1 of every item,etc.
+    */
+   unsigned int repeat_count ;
+   unsigned int repeat_add_to_value ;
+   unsigned int repeat_add_to_address ;
+
 };
 
 struct cheat_manager
@@ -214,24 +236,39 @@ void cheat_manager_load_game_specific_cheats(void);
 
 void cheat_manager_save_game_specific_cheats(void);
 
-int cheat_manager_initialize_memory(void *data, bool wraparound);
-int cheat_manager_search_exact(void *data, bool wraparound);
-int cheat_manager_search_lt(void *data, bool wraparound);
-int cheat_manager_search_gt(void *data, bool wraparound);
-int cheat_manager_search_lte(void *data, bool wraparound);
-int cheat_manager_search_gte(void *data, bool wraparound);
-int cheat_manager_search_eq(void *data, bool wraparound);
-int cheat_manager_search_neq(void *data, bool wraparound);
-int cheat_manager_search_eqplus(void *data, bool wraparound);
-int cheat_manager_search_eqminus(void *data, bool wraparound);
+int cheat_manager_initialize_memory(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_exact(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_lt(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_gt(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_lte(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_gte(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_eq(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_neq(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_eqplus(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_search_eqminus(rarch_setting_t *setting, bool wraparound);
+
 int cheat_manager_add_matches(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx);
+
 void cheat_manager_apply_retro_cheats(void);
+
 int cheat_manager_search(enum cheat_search_type search_type);
+
 void cheat_manager_match_action(enum cheat_match_action_type match_action, unsigned int target_match_idx, unsigned int *address, unsigned int *address_mask,
       unsigned int *prev_value, unsigned int *curr_value);
-int cheat_manager_copy_match(void *data, bool wraparound);
-int cheat_manager_delete_match(void *data, bool wraparound);
+
+int cheat_manager_copy_match(rarch_setting_t *setting, bool wraparound);
+
+int cheat_manager_delete_match(rarch_setting_t *setting, bool wraparound);
 RETRO_END_DECLS
 
 #endif

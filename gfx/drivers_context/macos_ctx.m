@@ -1,9 +1,17 @@
-//
-//  cocoa_ctx.m
-//  RetroArch
-//
-//  Created by Stuart Carnie on 5/10/18.
-//
+/*  RetroArch - A frontend for libretro.
+ *  Copyright (C) 2018      - Stuart Carnie
+ *
+ *  RetroArch is free software: you can redistribute it and/or modify it under the terms
+ *  of the GNU General Public License as published by the Free Software Found-
+ *  ation, either version 3 of the License, or (at your option) any later version.
+ *
+ *  RetroArch is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ *  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+ *  PURPOSE.  See the GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along with RetroArch.
+ *  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifdef HAVE_CONFIG_H
 #include "../../config.h"
@@ -80,7 +88,7 @@ typedef struct cocoa_ctx_data
    bool core_hw_context_enable;
 #ifdef HAVE_VULKAN
    gfx_ctx_vulkan_data_t vk;
-   unsigned swap_interval;
+   int swap_interval;
 #endif
     unsigned width;
     unsigned height;
@@ -291,7 +299,8 @@ static void *cocoagl_gfx_ctx_init(video_frame_info_t *video_info, void *video_dr
    {
 #if defined(HAVE_COCOATOUCH)
       case GFX_CTX_OPENGL_ES_API:
-         [apple_platform setViewType:APPLE_VIEW_TYPE_OPENGL_ES];
+         // setViewType is not (yet?) defined for iOS
+         // [apple_platform setViewType:APPLE_VIEW_TYPE_OPENGL_ES];
          break;
 #elif defined(HAVE_COCOA)
       case GFX_CTX_OPENGL_API:
@@ -352,7 +361,7 @@ static bool cocoagl_gfx_ctx_bind_api(void *data, enum gfx_ctx_api api, unsigned 
    return true;
 }
 
-static void cocoagl_gfx_ctx_swap_interval(void *data, unsigned interval)
+static void cocoagl_gfx_ctx_swap_interval(void *data, int interval)
 {
 #ifdef HAVE_VULKAN
    cocoa_ctx_data_t *cocoa_ctx = (cocoa_ctx_data_t*)data;
@@ -365,10 +374,10 @@ static void cocoagl_gfx_ctx_swap_interval(void *data, unsigned interval)
       {
 #if defined(HAVE_COCOATOUCH) // < No way to disable Vsync on iOS?
          //   Just skip presents so fast forward still works.
-         g_is_syncing = interval ? true : false;
+         g_is_syncing         = interval ? true : false;
          g_fast_forward_skips = interval ? 0 : 3;
 #elif defined(HAVE_COCOA)
-         GLint value = interval ? 1 : 0;
+         GLint value          = interval ? 1 : 0;
          [g_context setValues:&value forParameter:NSOpenGLCPSwapInterval];
 #endif
          break;
@@ -446,7 +455,7 @@ static bool cocoagl_gfx_ctx_set_video_mode(void *data,
          }
 #endif
          
-#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+#if MAC_OS_X_VERSION_10_10
          if (g_major == 4 && g_minor == 1)
          {
             attributes[6] = NSOpenGLPFAOpenGLProfile;
@@ -483,9 +492,10 @@ static bool cocoagl_gfx_ctx_set_video_mode(void *data,
       case GFX_CTX_VULKAN_API:
 #ifdef HAVE_VULKAN
          RARCH_LOG("[macOS]: Native window size: %u x %u.\n", cocoa_ctx->width, cocoa_ctx->height);
-         if (!vulkan_surface_create(&cocoa_ctx->vk, VULKAN_WSI_MVK_MACOS, NULL,
-                                    (BRIDGE void *)g_view, cocoa_ctx->width, cocoa_ctx->height,
-                                    cocoa_ctx->swap_interval))
+         if (!vulkan_surface_create(&cocoa_ctx->vk,
+                  VULKAN_WSI_MVK_MACOS, NULL,
+                  (BRIDGE void *)g_view, cocoa_ctx->width, cocoa_ctx->height,
+                  cocoa_ctx->swap_interval))
          {
             RARCH_ERR("[macOS]: Failed to create surface.\n");
             return false;
@@ -764,7 +774,8 @@ static bool cocoagl_gfx_ctx_set_resize(void *data, unsigned width, unsigned heig
          cocoa_ctx->width  = width;
          cocoa_ctx->height = height;
          
-         if (vulkan_create_swapchain(&cocoa_ctx->vk, width, height, cocoa_ctx->swap_interval))
+         if (vulkan_create_swapchain(&cocoa_ctx->vk,
+                  width, height, cocoa_ctx->swap_interval))
          {
             cocoa_ctx->vk.context.invalid_swapchain = true;
             if (cocoa_ctx->vk.created_new_swapchain)
