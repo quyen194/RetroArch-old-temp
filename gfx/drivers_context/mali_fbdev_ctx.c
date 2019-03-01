@@ -37,6 +37,7 @@
 #endif
 
 #include "../../frontend/frontend_driver.h"
+#include "../../verbosity.h"
 
 typedef struct
 {
@@ -116,7 +117,7 @@ static void *gfx_ctx_mali_fbdev_init(video_frame_info_t *video_info, void *video
 
 #ifdef HAVE_EGL
    if (!egl_init_context(&mali->egl, EGL_NONE, EGL_DEFAULT_DISPLAY,
-            &major, &minor, &n, attribs))
+            &major, &minor, &n, attribs, NULL))
    {
       egl_report_error();
       goto error;
@@ -332,4 +333,3 @@ const gfx_ctx_driver_t gfx_ctx_mali_fbdev = {
    NULL,
    NULL
 };
-

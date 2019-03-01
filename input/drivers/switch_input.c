@@ -11,6 +11,9 @@
 
 #ifdef HAVE_LIBNX
 #include <switch.h>
+
+#define MULTITOUCH_LIMIT 4 /* supports up to this many fingers at once */
+#define TOUCH_AXIS_MAX 0x7fff /* abstraction of pointer coords */
 #endif
 
 #include "../input_driver.h"
@@ -26,10 +29,15 @@ typedef struct switch_input
    bool blocked;
 
 #ifdef HAVE_LIBNX
-   uint32_t touch_x;
-   uint32_t touch_y;
+   uint32_t touch_scale_x;
+   uint32_t touch_scale_y;
 
-   bool touch_state;
+   uint32_t touch_half_resolution_x;
+   uint32_t touch_half_resolution_y;
+
+   bool touch_state[MULTITOUCH_LIMIT];
+   uint32_t touch_x[MULTITOUCH_LIMIT];
+   uint32_t touch_y[MULTITOUCH_LIMIT];
 #endif
 } switch_input_t;
 
@@ -43,49 +51,46 @@ static void switch_input_poll(void *data)
 #ifdef HAVE_LIBNX
    uint32_t touch_count = hidTouchCount();
 
-   sw->touch_state = touch_count > 0;
-
-   if (sw->touch_state)
+   for (int i = 0; i < MULTITOUCH_LIMIT; i++)
    {
-      touchPosition touch_position;
-      hidTouchRead(&touch_position, 0);
+      sw->touch_state[i] = touch_count > i;
 
-      sw->touch_x = touch_position.px;
-      sw->touch_y = touch_position.py;
+      if (sw->touch_state[i])
+      {
+         touchPosition touch_position;
+         hidTouchRead(&touch_position, i);
+
+         sw->touch_x[i] = touch_position.px;
+         sw->touch_y[i] = touch_position.py;
+      }
    }
 #endif
 }
 
 #ifdef HAVE_LIBNX
-static int16_t scale_touch(int16_t from_min, int16_t from_max,
-      int16_t to_min, int16_t to_max, 
-      int16_t value)
+void calc_touch_scaling(switch_input_t *sw, uint32_t x, uint32_t y, uint32_t axis_max)
 {
-   int32_t from_range = from_max - from_min;
-   int32_t to_range = to_max - to_min;
+   sw->touch_half_resolution_x = x/2;
+   sw->touch_half_resolution_y = y/2;
 
-   return (((value - from_min) * to_range) / from_range) + to_min;
+   sw->touch_scale_x = axis_max / sw->touch_half_resolution_x;
+   sw->touch_scale_y = axis_max / sw->touch_half_resolution_y;
 }
 
 static int16_t switch_pointer_device_state(switch_input_t *sw, 
       unsigned id, unsigned idx)
 {
-   /*
-      Here we assume that the touch screen is always 1280x720
-      Call me back when a Nintendo Switch XL is out
-   */
-
-   if (idx != 0)
+   if (idx >= MULTITOUCH_LIMIT)
       return 0;
 
    switch (id)
    {
       case RETRO_DEVICE_ID_POINTER_PRESSED:
-         return sw->touch_state;
+         return sw->touch_state[idx];
       case RETRO_DEVICE_ID_POINTER_X:
-         return scale_touch(0, 1280, -0x7fff, 0x7fff, (uint16_t) sw->touch_x);
+         return ((sw->touch_x[idx] - sw->touch_half_resolution_x) * sw->touch_scale_x);
       case RETRO_DEVICE_ID_POINTER_Y:
-         return scale_touch(0, 720, -0x7fff, 0x7fff, (uint16_t) sw->touch_y);
+         return ((sw->touch_y[idx] - sw->touch_half_resolution_y) * sw->touch_scale_y);
    }
 
    return 0;
@@ -132,6 +137,10 @@ static void switch_input_free_input(void *data)
       sw->joypad->destroy();
 
    free(sw);
+
+#ifdef HAVE_LIBNX
+   hidExit();
+#endif
 }
 
 static void* switch_input_init(const char *joypad_driver)
@@ -140,7 +149,20 @@ static void* switch_input_init(const char *joypad_driver)
    if (!sw)
       return NULL;
 
+#ifdef HAVE_LIBNX
+   hidInitialize();
+#endif
+
    sw->joypad = input_joypad_init_driver(joypad_driver, sw);
+
+#ifdef HAVE_LIBNX
+   /*
+      Here we assume that the touch screen is always 1280x720
+      Call me back when a Nintendo Switch XL is out
+   */
+
+   calc_touch_scaling(sw, 1280, 720, TOUCH_AXIS_MAX);
+#endif
 
    return sw;
 }
@@ -149,7 +171,13 @@ static uint64_t switch_input_get_capabilities(void *data)
 {
    (void) data;
 
-   return (1 << RETRO_DEVICE_JOYPAD) | (1 << RETRO_DEVICE_ANALOG);
+   uint64_t caps =  (1 << RETRO_DEVICE_JOYPAD) | (1 << RETRO_DEVICE_ANALOG);
+
+#ifdef HAVE_LIBNX
+   caps |= (1 << RETRO_DEVICE_POINTER);
+#endif
+
+   return caps;
 }
 
 static const input_device_driver_t *switch_input_get_joypad_driver(void *data)

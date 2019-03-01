@@ -37,6 +37,7 @@
 #endif
 
 #include "../../frontend/drivers/platform_unix.h"
+#include "../../verbosity.h"
 
 static enum gfx_ctx_api android_api           = GFX_CTX_NONE;
 
@@ -137,7 +138,7 @@ static void *android_gfx_ctx_init(video_frame_info_t *video_info, void *video_dr
          RARCH_LOG("Android EGL: GLES version = %d.\n", g_es3 ? 3 : 2);
 
          if (!egl_init_context(&and->egl, EGL_NONE, EGL_DEFAULT_DISPLAY,
-                  &major, &minor, &n, attribs))
+                  &major, &minor, &n, attribs, NULL))
          {
             egl_report_error();
             goto error;
@@ -535,7 +536,6 @@ static void android_gfx_ctx_set_swap_interval(void *data, int swap_interval)
          break;
    }
 }
-
 
 static gfx_ctx_proc_t android_gfx_ctx_get_proc_address(const char *symbol)
 {

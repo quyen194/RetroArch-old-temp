@@ -24,7 +24,6 @@
 
 RETRO_BEGIN_DECLS
 
-
 enum cheat_handler_type
 {
    CHEAT_HANDLER_TYPE_EMU = 0,
@@ -77,7 +76,8 @@ enum cheat_rumble_type
    RUMBLE_TYPE_LT_VALUE,
    RUMBLE_TYPE_GT_VALUE,
    RUMBLE_TYPE_INCREASE_BY_VALUE,
-   RUMBLE_TYPE_DECREASE_BY_VALUE
+   RUMBLE_TYPE_DECREASE_BY_VALUE,
+   RUMBLE_TYPE_END_LIST
 };
 
 /* Some codes are ridiculously large - over 10000 bytes */
@@ -158,10 +158,12 @@ struct cheat_manager
    unsigned size;
    unsigned buf_size;
    unsigned total_memory_size ;
-   unsigned actual_memory_size ;
    uint8_t *curr_memory_buf ;
    uint8_t *prev_memory_buf ;
    uint8_t *matches ;
+   uint8_t **memory_buf_list ;
+   unsigned *memory_size_list ;
+   unsigned num_memory_buffers ;
    struct item_cheat working_cheat;
    unsigned match_idx ;
    unsigned match_action ;
@@ -178,11 +180,13 @@ struct cheat_manager
    unsigned browse_address;
    char working_desc[CHEAT_DESC_SCRATCH_SIZE] ;
    char working_code[CHEAT_CODE_SCRATCH_SIZE] ;
+   unsigned int loading_cheat_size;
+   unsigned int loading_cheat_offset;
 };
 
 typedef struct cheat_manager cheat_manager_t;
 
-cheat_manager_t cheat_manager_state;
+extern cheat_manager_t cheat_manager_state;
 
 unsigned cheat_manager_get_size(void);
 

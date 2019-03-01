@@ -1,4 +1,4 @@
-/* CRT SwitchRes Core 
+/* CRT SwitchRes Core
  * Copyright (C) 2018 Alphanu / Ben Templeman.
  *
  * RetroArch - A frontend for libretro.
@@ -15,7 +15,7 @@
  *
  *  You should have received a copy of the GNU General Public License along with RetroArch.
  *  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -24,6 +24,15 @@
 #include "video_crt_switch.h"
 #include "video_display_server.h"
 
+#ifdef HAVE_CONFIG_H
+#include "../config.h"
+#endif
+
+#if defined(HAVE_VIDEOCORE)
+#include "include/userland/interface/vmcs_host/vc_vchi_gencmd.h"
+static void crt_rpi_switch(int width, int height, float hz);
+#endif
+
 static unsigned ra_core_width     = 0;
 static unsigned ra_core_height    = 0;
 static unsigned ra_tmp_width      = 0;
@@ -31,20 +40,19 @@ static unsigned ra_tmp_height     = 0;
 static unsigned ra_set_core_hz    = 0;
 static unsigned orig_width        = 0;
 static unsigned orig_height       = 0;
-static int crt_center_adjust = 0;
+static int crt_center_adjust      = 0;
 
 static bool first_run             = true;
 
 static float ra_tmp_core_hz       = 0.0f;
 static float fly_aspect           = 0.0f;
 static float ra_core_hz           = 0.0f;
+static unsigned crt_index         = 0;
 
 static void crt_check_first_run(void)
-{		
+{
    if (!first_run)
       return;
-
-   
 
    first_run   = false;
 }
@@ -57,28 +65,27 @@ static void switch_crt_hz(void)
    if (ra_core_hz < 100)
    {
       if (ra_core_hz < 53)
-         ra_set_core_hz = 50;	
+         ra_set_core_hz = 50;
       if (ra_core_hz >= 53  &&  ra_core_hz < 57)
-         ra_set_core_hz = 55;	
+         ra_set_core_hz = 55;
       if (ra_core_hz >= 57)
-         ra_set_core_hz = 60;	
+         ra_set_core_hz = 60;
    }
 
    if (ra_core_hz > 100)
    {
       if (ra_core_hz < 106)
-         ra_set_core_hz = 120;	
+         ra_set_core_hz = 120;
       if (ra_core_hz >= 106  &&  ra_core_hz < 114)
-         ra_set_core_hz = 110;	
+         ra_set_core_hz = 110;
       if (ra_core_hz >= 114)
-         ra_set_core_hz = 120;	
+         ra_set_core_hz = 120;
    }
-	
+
    video_monitor_set_refresh_rate(ra_set_core_hz);
-   
+
    ra_tmp_core_hz = ra_core_hz;
 }
-
 
 void crt_aspect_ratio_switch(unsigned width, unsigned height)
 {
@@ -89,66 +96,72 @@ void crt_aspect_ratio_switch(unsigned width, unsigned height)
 
 static void switch_res_crt(unsigned width, unsigned height)
 {
-   if (height > 100)
-   {
-      video_display_server_switch_resolution(width, height,
-            ra_set_core_hz, ra_core_hz, crt_center_adjust);
-      video_driver_apply_state_changes();
-   }
+   video_display_server_set_resolution(width, height,
+         ra_set_core_hz, ra_core_hz, crt_center_adjust, crt_index);
+#if defined(HAVE_VIDEOCORE)
+   crt_rpi_switch(width, height, ra_core_hz);
+   video_monitor_set_refresh_rate(ra_core_hz);
+   crt_switch_driver_reinit();
+#endif
+   video_driver_apply_state_changes();
 }
 
 /* Create correct aspect to fit video if resolution does not exist */
 static void crt_screen_setup_aspect(unsigned width, unsigned height)
 {
-   
+#if defined(HAVE_VIDEOCORE)
+   if (height > 300)
+      height = height/2;
+#endif
+
    switch_crt_hz();
-   /* get original resolution of core */	
+   /* get original resolution of core */
    if (height == 4)
    {
-      /* detect menu only */	
+      /* detect menu only */
       if (width < 1920)
          width = 320;
-      
+
       height = 240;
 
       crt_aspect_ratio_switch(width, height);
    }
 
    if (height < 200 && height != 144)
-   {				
+   {
       crt_aspect_ratio_switch(width, height);
       height = 200;
-   }	
+   }
 
    if (height > 200)
       crt_aspect_ratio_switch(width, height);
 
    if (height == 144 && ra_set_core_hz == 50)
-   {				
+   {
       height = 288;
       crt_aspect_ratio_switch(width, height);
    }
 
    if (height > 200 && height < 224)
-   {				
+   {
       crt_aspect_ratio_switch(width, height);
       height = 224;
    }
 
    if (height > 224 && height < 240)
-   {				
+   {
       crt_aspect_ratio_switch(width, height);
       height = 240;
    }
 
    if (height > 240 && height < 255)
-   {								
+   {
       crt_aspect_ratio_switch(width, height);
       height = 254;
    }
 
    if (height == 528 && ra_set_core_hz == 60)
-   {								
+   {
       crt_aspect_ratio_switch(width, height);
       height = 480;
    }
@@ -162,20 +175,23 @@ static void crt_screen_setup_aspect(unsigned width, unsigned height)
    switch_res_crt(width, height);
 }
 
-
-void crt_switch_res_core(unsigned width, unsigned height, float hz, unsigned crt_mode, int crt_switch_center_adjust)
+void crt_switch_res_core(unsigned width, unsigned height,
+      float hz, unsigned crt_mode,
+      int crt_switch_center_adjust, int monitor_index)
 {
-   /* ra_core_hz float passed from within 
+   /* ra_core_hz float passed from within
     * void video_driver_monitor_adjust_system_rates(void) */
-   ra_core_width  = width;		
+	
+   ra_core_width  = width;
    ra_core_height = height;
    ra_core_hz     = hz;
    crt_center_adjust = crt_switch_center_adjust;
+   crt_index  = monitor_index;
 
    if (crt_mode == 2)
    {
       if (hz > 53)
-         ra_core_hz = hz*2;
+         ra_core_hz = hz * 2;
 
       if (hz <= 53)
          ra_core_hz = 120.0f;
@@ -185,11 +201,11 @@ void crt_switch_res_core(unsigned width, unsigned height, float hz, unsigned crt
 
    /* Detect resolution change and switch */
    if (
-         (ra_tmp_height != ra_core_height) || 
-         (ra_core_width != ra_tmp_width)
+      (ra_tmp_height != ra_core_height) ||
+      (ra_core_width != ra_tmp_width)
       )
       crt_screen_setup_aspect(width, height);
-   
+
    ra_tmp_height  = ra_core_height;
    ra_tmp_width   = ra_core_width;
 
@@ -206,5 +222,143 @@ void crt_video_restore(void)
    if (first_run)
       return;
 
-    first_run = true;
+   first_run = true;
 }
+
+#if defined(HAVE_VIDEOCORE)
+static void crt_rpi_switch(int width, int height, float hz)
+{
+   char buffer[1024];
+   VCHI_INSTANCE_T vchi_instance;
+   VCHI_CONNECTION_T *vchi_connection = NULL;
+   static char output[250]             = {0};   
+   static char output1[250]            = {0}; 
+   static char output2[250]            = {0}; 
+   static char set_hdmi[250]           = {0};
+   static char set_hdmi_timing[250]    = {0};
+   int i              = 0;
+   int hfp            = 0;
+   int hsp            = 0;
+   int hbp            = 0;
+   int vfp            = 0;
+   int vsp            = 0;
+   int vbp            = 0; 
+   int hmax           = 0;
+   int vmax           = 0;
+   int pdefault       = 8;
+   int pwidth         = 0;
+   float roundw     = 0.0f;
+   float roundh     = 0.0f;
+   float pixel_clock  = 0;
+   int ip_flag     = 0;
+
+   /* set core refresh from hz */
+   video_monitor_set_refresh_rate(hz);
+
+   /* following code is the mode line generator */
+
+   pwidth = width;
+
+   if (height < 400 && width > 400)
+      pwidth = width / 2;
+
+   roundw = roundf((float)pwidth / (float)height * 100) / 100;
+
+   if (height > width)
+      roundw = roundf((float)height / (float)width * 100) / 100;
+
+   if (roundw > 1.35)
+      roundw = 1.25;
+
+   if (roundw < 1.20)
+      roundw = 1.34;
+   hfp = width * 0.065;
+
+   hsp = width * 0.1433-hfp;
+
+   hbp = width * 0.3-hsp-hfp;
+
+
+   if (height < 241)
+      vmax = 261;
+   if (height < 241 && hz > 56 && hz < 58)
+      vmax = 280;
+   if (height < 241 && hz < 55)
+      vmax = 313;
+   if (height > 250 && height < 260 && hz > 54)
+      vmax = 296;
+   if (height > 250 && height < 260 && hz > 52 && hz < 54)
+      vmax = 285;
+   if (height > 250 && height < 260 && hz < 52)
+      vmax = 313;
+   if (height > 260 && height < 300)
+      vmax = 318;
+
+   if (height > 400 && hz > 56)
+      vmax = 533;
+   if (height > 520 && hz < 57)
+      vmax = 580;
+
+   if (height > 300 && hz < 56)
+      vmax = 615;
+   if (height > 500 && hz < 56)
+      vmax = 624;
+   if (height > 300)
+      pdefault = pdefault * 2;
+
+   vfp = (height + ((vmax - height) / 2) - pdefault) - height;
+
+   if (height < 300)
+      vsp = vfp + 3; /* needs to be 3 for progressive */
+   if (height > 300)
+      vsp = vfp + 6; /* needs to be 6 for interlaced */
+
+   vsp = 3;
+
+   vbp = (vmax-height)-vsp-vfp;
+
+   hmax = width+hfp+hsp+hbp;
+
+   if (height < 300)
+   {
+      pixel_clock = (hmax * vmax * hz) ;
+      ip_flag     = 0;
+   }
+
+   if (height > 300)
+   {
+      pixel_clock = (hmax * vmax * (hz/2)) /2 ; 
+      ip_flag     = 1;
+   }
+   /* above code is the modeline generator */
+
+   snprintf(set_hdmi_timing, sizeof(set_hdmi_timing),
+         "hdmi_timings %d 1 %d %d %d %d 1 %d %d %d 0 0 0 %f %d %f 1 ",
+         width, hfp, hsp, hbp, height, vfp,vsp, vbp,
+         hz, ip_flag, pixel_clock); 
+
+   vcos_init ();
+
+   vchi_initialise (&vchi_instance);
+
+   vchi_connect (NULL, 0, vchi_instance);
+
+   vc_vchi_gencmd_init (vchi_instance, &vchi_connection, 1);
+
+
+   vc_gencmd (buffer, sizeof (buffer), set_hdmi_timing);
+
+   vc_gencmd_stop ();
+
+   vchi_disconnect (vchi_instance);
+
+   snprintf(output1,  sizeof(output1),
+         "tvservice -e \"DMT 87\" > /dev/null");
+   system(output1);
+   snprintf(output2,  sizeof(output1),
+         "fbset -g %d %d %d %d 24 > /dev/null",
+         width, height, width, height);
+   system(output2);
+}
+#endif
+

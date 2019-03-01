@@ -42,6 +42,7 @@
 
 #include "../../configuration.h"
 #include "../../frontend/frontend_driver.h"
+#include "../../verbosity.h"
 #include "../common/gl_common.h"
 #include "../common/x11_common.h"
 
@@ -490,7 +491,6 @@ static void *gfx_ctx_x_init(video_frame_info_t *video_info, void *data)
 
    if (!x11_connect())
       goto error;
-
 
    switch (x_api)
    {
@@ -1078,7 +1078,7 @@ static bool gfx_ctx_x_bind_api(void *data, enum gfx_ctx_api api,
       case GFX_CTX_OPENGL_ES_API:
 #ifdef HAVE_OPENGLES2
          {
-            Display *dpy = XOpenDisplay(NULL);
+            Display     *dpy = XOpenDisplay(NULL);
             const char *exts = glXQueryExtensionsString(dpy, DefaultScreen(dpy));
             bool ret         = exts && strstr(exts,
                   "GLX_EXT_create_context_es2_profile");
