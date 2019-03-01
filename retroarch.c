@@ -566,7 +566,13 @@ static void retroarch_print_help(const char *arg0)
 #ifdef HAVE_NETWORKING
    puts("  -H, --host            Host netplay as user 1.");
    puts("  -C, --connect=HOST    Connect to netplay server as user 2.");
+// QuyenNC mod start
+#if !defined (VITA)
    puts("      --port=PORT       Port used to netplay. Default is 55435.");
+#else
+   puts("      --port=PORT       Port used to netplay. Default is 19492.");
+#endif
+// QuyenNC mod end
    puts("      --stateless       Use \"stateless\" mode for netplay");
    puts("                        (requires a very fast network).");
    puts("      --check-frames=NUMBER\n"

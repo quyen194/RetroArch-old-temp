@@ -4024,7 +4024,7 @@ static void netplay_refresh_rooms_cb(void *task_data, void *user_data, const cha
 
          lan_room_count                       = 0;
 
-#ifndef RARCH_CONSOLE
+#if !defined(RARCH_CONSOLE) || defined(VITA)  // QuyenNC mod
          netplay_discovery_driver_ctl(RARCH_NETPLAY_DISCOVERY_CTL_LAN_GET_RESPONSES, &lan_hosts);
          if (lan_hosts)
             lan_room_count                    = (int)lan_hosts->size;
@@ -4124,6 +4124,13 @@ static void netplay_lan_scan_callback(void *task_data,
             MENU_ENUM_LABEL_DEFERRED_NETPLAY_LAN_SCAN_SETTINGS_LIST)))
       return;
 
+   // QuyenNC add start
+   /* Don't push the results if we left the netplay menu */
+   if (!string_is_equal(label, msg_hash_to_str(MENU_ENUM_LABEL_NETPLAY_TAB))
+    && !string_is_equal(label, msg_hash_to_str(MENU_ENUM_LABEL_NETPLAY)))
+      return;
+   // QuyenNC add end
+
    if (!netplay_discovery_driver_ctl(
             RARCH_NETPLAY_DISCOVERY_CTL_LAN_GET_RESPONSES,
             (void *) &netplay_hosts))
@@ -4152,7 +4159,7 @@ static int action_ok_push_netplay_refresh_rooms(const char *path,
       const char *label, unsigned type, size_t idx, size_t entry_idx)
 {
    char url [2048] = "http://newlobby.libretro.com/list/";
-#ifndef RARCH_CONSOLE
+#if !defined(RARCH_CONSOLE) || defined(VITA)  // QuyenNC mod
    task_push_netplay_lan_scan(netplay_lan_scan_callback);
 #endif
    task_push_http_transfer(url, true, NULL, netplay_refresh_rooms_cb, NULL);

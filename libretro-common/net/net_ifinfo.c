@@ -30,14 +30,14 @@
 #include <winsock2.h>
 #include <iphlpapi.h>
 #include <ws2tcpip.h>
-#else
+#elif !defined(VITA)  // QuyenNC mod
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netdb.h>
 
 #ifdef WANT_IFADDRS
 #include <compat/ifaddrs.h>
-#else
+#elif !defined(VITA)  // QuyenNC mod
 #include <ifaddrs.h>
 #endif
 #endif
@@ -47,6 +47,12 @@
 #if defined(BSD)
 #include <netinet/in.h>
 #endif
+
+// QuyenNC add start
+#if defined(VITA)
+#include <psp2/net/netctl.h>
+#endif
+// QuyenNC add end
 
 void net_ifinfo_free(net_ifinfo_t *list)
 {
@@ -123,6 +129,22 @@ bool net_ifinfo_new(net_ifinfo_t *list)
    }
 
    free(adapter_addresses);
+// QuyenNC add start
+#elif defined(VITA)
+   memset(list, 0, sizeof(net_ifinfo_t));
+   list->entries = (struct net_ifinfo_entry*) malloc(sizeof(struct net_ifinfo_entry));
+   list->size = 1;
+
+   SceNetCtlInfo info;
+   if (sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_IP_ADDRESS, &info) >= 0) {
+      list->entries[0].name = (char*) malloc(32 + 1);
+      sprintf(list->entries[0].name, "WIFI_LAN");
+      list->entries[0].host = (char*) malloc(32 + 1);
+      strlcpy(list->entries[0].host, info.ip_address, 32);
+   } else {
+      goto error;
+   }
+// QuyenNC add end
 #else
    struct ifaddrs *ifa     = NULL;
    struct ifaddrs *ifaddr  = NULL;
@@ -173,7 +195,7 @@ error:
 #ifdef _WIN32
    if (adapter_addresses)
       free(adapter_addresses);
-#else
+#elif !defined(VITA)  // QuyenNC mod
    freeifaddrs(ifaddr);
 #endif
    net_ifinfo_free(list);

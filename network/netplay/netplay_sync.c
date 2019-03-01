@@ -610,11 +610,15 @@ bool netplay_sync_pre_frame(netplay_t *netplay)
       size_t connection_num;
 
       /* Check for a connection */
+// QuyenNC mod start
+#if !defined(VITA)
       FD_ZERO(&fds);
       FD_SET(netplay->listen_fd, &fds);
       if (socket_select(netplay->listen_fd + 1,
                &fds, NULL, NULL, &tmp_tv) > 0 &&
           FD_ISSET(netplay->listen_fd, &fds))
+#endif
+// QuyenNC mod end
       {
          addr_size = sizeof(their_addr);
          new_fd = accept(netplay->listen_fd,
@@ -622,6 +626,12 @@ bool netplay_sync_pre_frame(netplay_t *netplay)
 
          if (new_fd < 0)
          {
+// QuyenNC mod start
+#if defined(VITA)
+            if (new_fd != SCE_NET_ERROR_EAGAIN &&
+                new_fd != SCE_NET_ERROR_EWOULDBLOCK)
+#endif
+// QuyenNC mod end
             RARCH_ERR("%s\n", msg_hash_to_str(MSG_NETPLAY_FAILED));
             goto process;
          }

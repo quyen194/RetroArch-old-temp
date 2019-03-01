@@ -151,3 +151,14 @@ retroarch.js.mem
 
 # only ignore .js files in the repo root
 /*.js
+
+# QuyenNC add start
+/pkg/vita/retroarch/
+/pkg/vita/retroarch.vpk/
+/pkg/vita/vpk/
+*.sfo
+*.self
+*.elf
+*.vpk
+retroarch.default.cfg
+# QuyenNC add end

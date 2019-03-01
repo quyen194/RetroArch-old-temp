@@ -26,7 +26,12 @@
 #include <retro_miscellaneous.h>
 #include <net/net_compat.h>
 #include <net/net_socket.h>
+// QuyenNC add start
+#include <file/config_file.h>
 
+#include "../configuration.h"
+#include "../paths.h"
+// QuyenNC add end
 #include "../verbosity.h"
 
 #if !defined(PC_DEVELOPMENT_IP_ADDRESS)
@@ -40,11 +45,48 @@
 static int g_sid;
 static struct sockaddr_in target;
 
+// QuyenNC add start
+char netlogger_ip[32] = PC_DEVELOPMENT_IP_ADDRESS;
+unsigned netlogger_port = PC_DEVELOPMENT_UDP_PORT;
+
+void logger_config_load(void)
+{
+   config_file_t *conf = NULL;
+
+   conf = config_file_new("ux0:/data/retroarch/retroarch.cfg");
+   if (!conf)
+      return;
+
+   // get ip
+   if (!config_get_array(conf, "netlogger_ip", netlogger_ip, sizeof(netlogger_ip)))
+   {
+      strlcpy(netlogger_ip, PC_DEVELOPMENT_IP_ADDRESS, sizeof(netlogger_ip));
+   }
+
+   // get port
+   if (!config_get_uint(conf, "netlogger_port", &netlogger_port))
+   {
+      netlogger_port = PC_DEVELOPMENT_UDP_PORT;
+   }
+
+   if (conf)
+      config_file_free(conf);
+}
+// QuyenNC add end
+
 void logger_init (void)
 {
+// QuyenNC add start
+#if defined(VITA)
+   logger_config_load();
+#endif
+// QuyenNC add end
+
    socket_target_t in_target;
-   const char *server = PC_DEVELOPMENT_IP_ADDRESS;
-   unsigned      port = PC_DEVELOPMENT_UDP_PORT;
+   // QuyenNC mod start
+   const char *server = netlogger_ip;
+   unsigned      port = netlogger_port;
+   // QuyenNC mod end
 
    if (!network_init())
    {

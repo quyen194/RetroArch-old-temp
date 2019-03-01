@@ -385,7 +385,7 @@ static bool all_users_control_menu = false;
 #if defined(ANDROID) || defined(_WIN32)
 static bool menu_swap_ok_cancel_buttons = true;
 #else
-static bool menu_swap_ok_cancel_buttons = false;
+static bool menu_swap_ok_cancel_buttons = true;  // QuyenNC mod
 #endif
 
 /* Crop overscanned frames. */
@@ -653,6 +653,11 @@ static const unsigned libretro_log_level = 1;
 #ifndef RARCH_DEFAULT_PORT
 #define RARCH_DEFAULT_PORT 55435
 #endif
+// QuyenNC add start
+#ifndef RARCH_VITA_DEFAULT_PORT
+#define RARCH_VITA_DEFAULT_PORT 19492
+#endif
+// QuyenNC add end
 
 /* KEYBINDS, JOYPAD */
 

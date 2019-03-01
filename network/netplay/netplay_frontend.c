@@ -1364,8 +1364,15 @@ bool init_netplay(void *direct_host, const char *server, unsigned port)
          netplay_is_client ? direct_host : NULL,
          netplay_is_client ? (!netplay_client_deferred ? server
             : server_address_deferred) : NULL,
+// QuyenNC mod start
+#if !defined (VITA)
          netplay_is_client ? (!netplay_client_deferred ? port
             : server_port_deferred   ) : (port != 0 ? port : RARCH_DEFAULT_PORT),
+#else
+         netplay_is_client ? (!netplay_client_deferred ? port
+            : server_port_deferred   ) : (port != 0 ? port : RARCH_VITA_DEFAULT_PORT),
+#endif
+// QuyenNC mod end
          settings->bools.netplay_stateless_mode,
          settings->ints.netplay_check_frames,
          &cbs,
