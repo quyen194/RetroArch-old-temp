@@ -135,9 +135,8 @@ static int task_image_iterate_process_transfer(struct nbio_image_handle *image)
 
    for (i = 0; i < image->processing_pos_increment; i++)
    {
-      retval = task_image_process(image,
-               &width, &height);
-      if (retval != IMAGE_PROCESS_NEXT)
+      if ((retval = task_image_process(image,
+               &width, &height) != IMAGE_PROCESS_NEXT))
          break;
    }
 
@@ -291,7 +290,7 @@ bool task_push_image_load(const char *fullpath, retro_task_callback_t cb, void *
 {
    nbio_handle_t             *nbio   = NULL;
    struct nbio_image_handle   *image = NULL;
-   retro_task_t                   *t = (retro_task_t*)calloc(1, sizeof(*t));
+   retro_task_t                   *t = task_init();
 
    if (!t)
       goto error_msg;

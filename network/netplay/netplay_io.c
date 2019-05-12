@@ -26,7 +26,12 @@
 
 #include "../../configuration.h"
 #include "../../retroarch.h"
+#include "../../command.h"
 #include "../../tasks/tasks_internal.h"
+
+#include "../../discord/discord.h"
+
+extern bool discord_is_inited;
 
 static void handle_play_spectate(netplay_t *netplay, uint32_t client_num,
       struct netplay_connection *connection, uint32_t cmd, uint32_t cmd_size,
@@ -115,10 +120,18 @@ void netplay_hangup(netplay_t *netplay, struct netplay_connection *connection)
    else
    {
       dmsg = msg_hash_to_str(MSG_NETPLAY_CLIENT_HANGUP);
+#ifdef HAVE_DISCORD
+      if (discord_is_inited)
+      {
+         discord_userdata_t userdata;
+         userdata.status = DISCORD_PRESENCE_NETPLAY_NETPLAY_STOPPED;
+         command_event(CMD_EVENT_DISCORD_UPDATE, &userdata);
+      }
+#endif
       netplay->is_connected = false;
    }
    RARCH_LOG("[netplay] %s\n", dmsg);
-   runloop_msg_queue_push(dmsg, 1, 180, false);
+   runloop_msg_queue_push(dmsg, 1, 180, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
 
    socket_close(connection->fd);
    connection->active = false;
@@ -183,7 +196,7 @@ void netplay_delayed_state_change(netplay_t *netplay)
    {
       uint32_t client_num                   = (uint32_t)(i + 1);
       struct netplay_connection *connection = &netplay->connections[i];
-       
+
       if ((connection->active || connection->mode == NETPLAY_CONNECTION_DELAYED_DISCONNECT) &&
           connection->delay_frame &&
           connection->delay_frame <= netplay->self_frame_count)
@@ -193,7 +206,7 @@ void netplay_delayed_state_change(netplay_t *netplay)
          payload[0]           = htonl(connection->delay_frame);
          payload[1]           = htonl(client_num);
          payload[2]           = htonl(0);
-          
+
          memcpy(payload + 3, netplay->device_share_modes, sizeof(netplay->device_share_modes));
          strncpy((char *) (payload + 7), connection->nick, NETPLAY_NICK_LEN);
 
@@ -303,7 +316,7 @@ bool netplay_send_cur_input(netplay_t *netplay,
       {
          if (from_client == to_client)
             continue;
-          
+
          if ((netplay->connected_players & (1<<from_client)))
          {
             if (dframe->have_real[from_client])
@@ -636,7 +649,7 @@ static void announce_play_spectate(netplay_t *netplay,
    if (msg[0])
    {
       RARCH_LOG("[netplay] %s\n", msg);
-      runloop_msg_queue_push(msg, 1, 180, false);
+      runloop_msg_queue_push(msg, 1, 180, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
    }
 }
 
@@ -806,16 +819,16 @@ static void handle_play_spectate(netplay_t *netplay, uint32_t client_num,
                if (!netplay->device_clients[device])
                   break;
             }
-            if (device >= MAX_INPUT_DEVICES && share_mode)
+            if (device >= MAX_INPUT_DEVICES &&
+                netplay->config_devices[1] == RETRO_DEVICE_NONE && share_mode)
             {
-               /* No device was totally free, maybe one is shareable? */
-               for (device = 0; device < MAX_INPUT_DEVICES; device++)
+               /* No device free and no device specifically asked for, but only
+                * one device, so share it */
+               if (netplay->device_share_modes[0])
                {
-                  if (netplay->device_clients[device] && netplay->device_share_modes[device])
-                  {
-                     share_mode = netplay->device_share_modes[device];
-                     break;
-                  }
+                  device     = 0;
+                  share_mode = netplay->device_share_modes[0];
+                  break;
                }
             }
             if (device >= MAX_INPUT_DEVICES)
@@ -1469,7 +1482,7 @@ static bool netplay_get_cmd(netplay_t *netplay,
             if (dmsg)
             {
                RARCH_LOG("[netplay] %s\n", dmsg);
-               runloop_msg_queue_push(dmsg, 1, 180, false);
+               runloop_msg_queue_push(dmsg, 1, 180, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
             }
             break;
          }
@@ -1787,7 +1800,7 @@ static bool netplay_get_cmd(netplay_t *netplay,
                snprintf(msg, sizeof(msg)-1, msg_hash_to_str(MSG_NETPLAY_PEER_PAUSED), nick);
             }
             RARCH_LOG("[netplay] %s\n", msg);
-            runloop_msg_queue_push(msg, 1, 180, false);
+            runloop_msg_queue_push(msg, 1, 180, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
             break;
          }
 
@@ -2026,7 +2039,7 @@ void netplay_announce_nat_traversal(netplay_t *netplay)
    {
       snprintf(msg, sizeof(msg), "%s\n",
             msg_hash_to_str(MSG_UPNP_FAILED));
-      runloop_msg_queue_push(msg, 1, 180, false);
+      runloop_msg_queue_push(msg, 1, 180, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
       RARCH_LOG("[netplay] %s\n", msg);
       return;
    }
@@ -2034,7 +2047,7 @@ void netplay_announce_nat_traversal(netplay_t *netplay)
    snprintf(msg, sizeof(msg), "%s: %s:%s\n",
          msg_hash_to_str(MSG_PUBLIC_ADDRESS),
          host, port);
-   runloop_msg_queue_push(msg, 1, 180, false);
+   runloop_msg_queue_push(msg, 1, 180, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
    RARCH_LOG("[netplay] %s\n", msg);
 #endif
 }

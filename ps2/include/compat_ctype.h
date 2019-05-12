@@ -22,4 +22,6 @@ unsigned long long strtoull(const char * __restrict nptr, char ** __restrict end
 int link(const char *oldpath, const char *newpath);
 int unlink(const char *path);
 
+float strtof (const char* str, char** endptr);
+
 #endif

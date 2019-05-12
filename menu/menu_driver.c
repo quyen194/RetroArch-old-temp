@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -25,6 +25,7 @@
 #include <streams/file_stream.h>
 #include <string/stdstring.h>
 #include <encodings/utf.h>
+#include <features/features_cpu.h>
 
 #ifdef WIIU
 #include <wiiu/os/energy.h>
@@ -65,10 +66,14 @@
 #include "../tasks/tasks_internal.h"
 #include "../ui/ui_companion_driver.h"
 #include "../verbosity.h"
+#include "../tasks/task_powerstate.h"
 
 #define SCROLL_INDEX_SIZE          (2 * (26 + 2) + 1)
 
 #define PARTICLES_COUNT            100
+
+#define POWERSTATE_CHECK_INTERVAL  (30 * 1000000)
+#define DATETIME_CHECK_INTERVAL    1000000
 
 typedef struct menu_ctx_load_image
 {
@@ -127,6 +132,12 @@ static menu_display_ctx_driver_t *menu_display_ctx_drivers[] = {
 #ifdef HAVE_OPENGL
    &menu_display_ctx_gl,
 #endif
+#ifdef HAVE_OPENGL1
+   &menu_display_ctx_gl1,
+#endif
+#ifdef HAVE_OPENGL_CORE
+   &menu_display_ctx_gl_core,
+#endif
 #ifdef HAVE_VULKAN
    &menu_display_ctx_vulkan,
 #endif
@@ -175,9 +186,7 @@ static unsigned menu_display_header_height       = 0;
 
 static bool menu_display_has_windowed            = false;
 static bool menu_display_msg_force               = false;
-static bool menu_display_font_alloc_framebuf     = false;
 static bool menu_display_framebuf_dirty          = false;
-static const uint8_t *menu_display_font_framebuf = NULL;
 static menu_display_ctx_driver_t *menu_disp      = NULL;
 
 /* when enabled, on next iteration the 'Quick Menu' list will
@@ -217,6 +226,15 @@ static size_t   scroll_index_list[SCROLL_INDEX_SIZE];
 static unsigned scroll_index_size               = 0;
 static unsigned scroll_acceleration             = 0;
 static size_t menu_driver_selection_ptr         = 0;
+
+/* Timers */
+static retro_time_t menu_driver_current_time_us         = 0;
+static retro_time_t menu_driver_powerstate_last_time_us = 0;
+static retro_time_t menu_driver_datetime_last_time_us   = 0;
+
+/* Storage container for current menu datetime
+ * representation string */
+static char menu_datetime_cache[255]                    = {0};
 
 /* Returns the OSK key at a given position */
 int menu_display_osk_ptr_at_pos(void *data, int x, int y,
@@ -272,6 +290,14 @@ static bool menu_display_check_compatibility(
          return true;
       case MENU_VIDEO_DRIVER_OPENGL:
          if (string_is_equal(video_driver, "gl"))
+            return true;
+         break;
+      case MENU_VIDEO_DRIVER_OPENGL1:
+         if (string_is_equal(video_driver, "gl1"))
+            return true;
+         break;
+      case MENU_VIDEO_DRIVER_OPENGL_CORE:
+         if (string_is_equal(video_driver, "glcore"))
             return true;
          break;
       case MENU_VIDEO_DRIVER_VULKAN:
@@ -344,65 +370,115 @@ static bool menu_display_check_compatibility(
  * */
 void menu_display_timedate(menu_display_ctx_datetime_t *datetime)
 {
-   time_t time_;
-
    if (!datetime)
       return;
 
-   time(&time_);
-
-   setlocale(LC_TIME, "");
-
-   switch (datetime->time_mode)
+   /* Trigger an update, if required */
+   if (menu_driver_current_time_us - menu_driver_datetime_last_time_us >=
+         DATETIME_CHECK_INTERVAL)
    {
-      case 0: /* Date and time */
-         strftime(datetime->s, datetime->len,
-               "%Y-%m-%d %H:%M:%S", localtime(&time_));
-         break;
-      case 1: /* YY-MM-DD HH:MM */
-         strftime(datetime->s, datetime->len,
-               "%Y-%m-%d %H:%M", localtime(&time_));
-         break;
-      case 2: /* MM-DD-YYYY HH:MM  */
-         strftime(datetime->s, datetime->len,
-               "%m-%d-%Y %H:%M", localtime(&time_));
-         break;
-      case 3: /* Time */
-         strftime(datetime->s, datetime->len,
-               "%H:%M:%S", localtime(&time_));
-         break;
-      case 4: /* Time (hours-minutes) */
-         strftime(datetime->s, datetime->len,
-               "%H:%M", localtime(&time_));
-         break;
-      case 5: /* Date and time, without year and seconds */
-         strftime(datetime->s, datetime->len,
-               "%d/%m %H:%M", localtime(&time_));
-         break;
-      case 6:
-         strftime(datetime->s, datetime->len,
-               "%m/%d %H:%M", localtime(&time_));
-         break;
-      case 7: /* Time (hours-minutes), in 12 hour AM-PM designation */
+      time_t time_;
+
+      menu_driver_datetime_last_time_us = menu_driver_current_time_us;
+
+      /* Get current time */
+      time(&time_);
+
+      setlocale(LC_TIME, "");
+
+      /* Format string representation */
+      switch (datetime->time_mode)
+      {
+         case 0: /* Date and time */
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+                  "%Y-%m-%d %H:%M:%S", localtime(&time_));
+            break;
+         case 1: /* YY-MM-DD HH:MM */
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+                  "%Y-%m-%d %H:%M", localtime(&time_));
+            break;
+         case 2: /* MM-DD-YYYY HH:MM  */
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+                  "%m-%d-%Y %H:%M", localtime(&time_));
+            break;
+         case 3: /* Time */
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+                  "%H:%M:%S", localtime(&time_));
+            break;
+         case 4: /* Time (hours-minutes) */
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+                  "%H:%M", localtime(&time_));
+            break;
+         case 5: /* Date and time, without year and seconds */
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+                  "%d/%m %H:%M", localtime(&time_));
+            break;
+         case 6:
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+                  "%m/%d %H:%M", localtime(&time_));
+            break;
+         case 7: /* Time (hours-minutes), in 12 hour AM-PM designation */
 #if defined(__linux__) && !defined(ANDROID)
-         strftime(datetime->s, datetime->len,
-            "%I : %M : %S %p", localtime(&time_));
+            strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+               "%I : %M : %S %p", localtime(&time_));
 #else
-         {
-            char *local;
-
-            strftime(datetime->s, datetime->len,
-
-               "%I:%M:%S %p", localtime(&time_));
-            local = local_to_utf8_string_alloc(datetime->s);
-
-            if (local)
             {
-               strlcpy(datetime->s, local, datetime->len);
-               free(local);
+               char *local;
+
+               strftime(menu_datetime_cache, sizeof(menu_datetime_cache),
+
+                  "%I:%M:%S %p", localtime(&time_));
+               local = local_to_utf8_string_alloc(menu_datetime_cache);
+
+               if (local)
+               {
+                  strlcpy(menu_datetime_cache, local, sizeof(menu_datetime_cache));
+                  free(local);
+               }
             }
-         }
 #endif
+      }
+   }
+
+   /* Copy cached datetime string to input
+    * menu_display_ctx_datetime_t struct */
+   strlcpy(datetime->s, menu_datetime_cache, datetime->len);
+}
+
+/* Display current (battery) power state */
+void menu_display_powerstate(menu_display_ctx_powerstate_t *powerstate)
+{
+   int percent                    = 0;
+   enum frontend_powerstate state = FRONTEND_POWERSTATE_NONE;
+
+   if (!powerstate)
+      return;
+
+   /* Trigger an update, if required */
+   if (menu_driver_current_time_us - menu_driver_powerstate_last_time_us >=
+         POWERSTATE_CHECK_INTERVAL)
+   {
+      menu_driver_powerstate_last_time_us = menu_driver_current_time_us;
+      task_push_get_powerstate();
+   }
+
+   /* Get last recorded state */
+   state = get_last_powerstate(&percent);
+
+   /* Populate menu_display_ctx_powerstate_t */
+   powerstate->battery_enabled = (state != FRONTEND_POWERSTATE_NONE) &&
+                                 (state != FRONTEND_POWERSTATE_NO_SOURCE);
+
+   if (powerstate->battery_enabled)
+   {
+      powerstate->charging = (state == FRONTEND_POWERSTATE_CHARGING);
+      powerstate->percent  = percent > 0 ? (unsigned)percent : 0;
+      snprintf(powerstate->s, powerstate->len, "%u%%", powerstate->percent);
+   }
+   else
+   {
+      powerstate->charging = false;
+      powerstate->percent  = 0;
    }
 }
 
@@ -464,6 +540,7 @@ font_data_t *menu_display_font(
 font_data_t *menu_display_font_file(char* fontpath, float menu_font_size, bool is_threaded)
 {
    font_data_t *font_data = NULL;
+
    if (!menu_disp)
       return NULL;
 
@@ -485,16 +562,6 @@ void menu_display_coords_array_reset(void)
 video_coord_array_t *menu_display_get_coords_array(void)
 {
    return &menu_disp_ca;
-}
-
-const uint8_t *menu_display_get_font_framebuffer(void)
-{
-   return menu_display_font_framebuf;
-}
-
-void menu_display_set_font_framebuffer(const uint8_t *buffer)
-{
-   menu_display_font_framebuf = buffer;
 }
 
 bool menu_display_libretro_running(
@@ -523,6 +590,7 @@ bool menu_display_libretro(bool is_idle,
          input_driver_set_libretro_input_blocked();
 
       core_run();
+      rarch_core_runtime_tick();
       input_driver_unset_libretro_input_blocked();
 
       return true;
@@ -536,8 +604,7 @@ bool menu_display_libretro(bool is_idle,
 
       command_event(CMD_EVENT_DISCORD_UPDATE, &userdata);
 #endif
-      return true; /* Maybe return false here
-                      for indication of idleness? */
+      return false; /* Return false here for indication of idleness */
    }
    return video_driver_cached_frame();
 }
@@ -591,16 +658,6 @@ bool menu_display_get_msg_force(void)
 void menu_display_set_msg_force(bool state)
 {
    menu_display_msg_force = state;
-}
-
-bool menu_display_get_font_data_init(void)
-{
-   return menu_display_font_alloc_framebuf;
-}
-
-void menu_display_set_font_data_init(bool state)
-{
-   menu_display_font_alloc_framebuf = state;
 }
 
 /* Returns true if an animation is still active or
@@ -780,7 +837,8 @@ void menu_display_draw_bg(menu_display_ctx_draw_t *draw,
    if (!draw->texture)
       draw->texture     = menu_display_white_texture;
 
-   draw->matrix_data = (math_matrix_4x4*)menu_disp->get_default_mvp(video_info);
+   if (menu_disp && menu_disp->get_default_mvp)
+      draw->matrix_data = (math_matrix_4x4*)menu_disp->get_default_mvp(video_info);
 }
 
 void menu_display_draw_gradient(menu_display_ctx_draw_t *draw,
@@ -1252,7 +1310,8 @@ static bool menu_driver_load_image(menu_ctx_load_image_t *load_image_info)
    return false;
 }
 
-void menu_display_handle_thumbnail_upload(void *task_data,
+void menu_display_handle_thumbnail_upload(retro_task_t *task,
+      void *task_data,
       void *user_data, const char *err)
 {
    menu_ctx_load_image_t load_image_info;
@@ -1268,7 +1327,8 @@ void menu_display_handle_thumbnail_upload(void *task_data,
    free(user_data);
 }
 
-void menu_display_handle_left_thumbnail_upload(void *task_data,
+void menu_display_handle_left_thumbnail_upload(retro_task_t *task,
+      void *task_data,
       void *user_data, const char *err)
 {
    menu_ctx_load_image_t load_image_info;
@@ -1284,7 +1344,8 @@ void menu_display_handle_left_thumbnail_upload(void *task_data,
    free(user_data);
 }
 
-void menu_display_handle_savestate_thumbnail_upload(void *task_data,
+void menu_display_handle_savestate_thumbnail_upload(retro_task_t *task,
+      void *task_data,
       void *user_data, const char *err)
 {
    menu_ctx_load_image_t load_image_info;
@@ -1303,7 +1364,8 @@ void menu_display_handle_savestate_thumbnail_upload(void *task_data,
 /* Function that gets called when we want to load in a
  * new menu wallpaper.
  */
-void menu_display_handle_wallpaper_upload(void *task_data,
+void menu_display_handle_wallpaper_upload(retro_task_t *task,
+      void *task_data,
       void *user_data, const char *err)
 {
    menu_ctx_load_image_t load_image_info;
@@ -1574,10 +1636,13 @@ void menu_display_draw_text(
 {
    struct font_params params;
 
+   if ((color & 0x000000FF) == 0)
+      return;
+
    /* Don't draw outside of the screen */
-   if (     ((x < -64 || x > width  + 64)
+   if (!draw_outside &&
+           ((x < -64 || x > width  + 64)
          || (y < -64 || y > height + 64))
-         && !draw_outside
       )
       return;
 
@@ -1603,7 +1668,8 @@ void menu_display_draw_text(
 
 bool menu_display_reset_textures_list(
       const char *texture_path, const char *iconpath,
-      uintptr_t *item, enum texture_filter_type filter_type)
+      uintptr_t *item, enum texture_filter_type filter_type,
+      unsigned *width, unsigned *height)
 {
    struct texture_image ti;
    char texpath[PATH_MAX_LENGTH] = {0};
@@ -1621,6 +1687,12 @@ bool menu_display_reset_textures_list(
 
    if (!image_texture_load(&ti, texpath))
       return false;
+
+   if (width)
+      *width = ti.width;
+
+   if (height)
+      *height = ti.height;
 
    video_driver_texture_load(&ti,
          filter_type, item);
@@ -1688,7 +1760,8 @@ const char *config_get_menu_driver_options(void)
  * when we need to extract the APK contents/zip file. This
  * file contains assets which then get extracted to the
  * user's asset directories. */
-static void bundle_decompressed(void *task_data,
+static void bundle_decompressed(retro_task_t *task,
+      void *task_data,
       void *user_data, const char *err)
 {
    settings_t      *settings   = config_get_ptr();
@@ -1733,11 +1806,15 @@ static bool menu_init(menu_handle_t *menu_data)
 
    if (settings->bools.menu_show_start_screen)
    {
+      /* We don't want the welcome dialog screen to show up
+       * again after the first startup, so we save to config
+       * file immediately. */
+
       menu_dialog_push_pending(true, MENU_DIALOG_WELCOME);
 
       configuration_set_bool(settings,
             settings->bools.menu_show_start_screen, false);
-#if !defined(PS2) /* TODO: PS2 IMPROVEMENT */
+#if !(defined(PS2) && defined(DEBUG)) /* TODO: PS2 IMPROVEMENT */
       if (settings->bools.config_save_on_exit)
          command_event(CMD_EVENT_MENU_SAVE_CURRENT_CONFIG, NULL);
 #endif
@@ -1759,7 +1836,7 @@ static bool menu_init(menu_handle_t *menu_data)
       task_push_decompress(settings->arrays.bundle_assets_src,
             settings->arrays.bundle_assets_dst,
             NULL, settings->arrays.bundle_assets_dst_subdir,
-            NULL, bundle_decompressed, NULL);
+            NULL, bundle_decompressed, NULL, NULL);
 #endif
    }
 
@@ -1894,6 +1971,12 @@ void menu_driver_frame(video_frame_info_t *video_info)
       menu_driver_ctx->frame(menu_userdata, video_info);
 }
 
+bool menu_driver_get_load_content_animation_data(menu_texture_item *icon, char **playlist_name)
+{
+   return menu_driver_ctx && menu_driver_ctx->get_load_content_animation_data
+      && menu_driver_ctx->get_load_content_animation_data(menu_userdata, icon, playlist_name);
+}
+
 bool menu_driver_render(bool is_idle, bool rarch_is_inited,
       bool rarch_is_dummy_core)
 {
@@ -1924,9 +2007,6 @@ bool menu_driver_render(bool is_idle, bool rarch_is_inited,
 
    if (BIT64_GET(menu_driver_data->state, MENU_STATE_BLIT))
    {
-      settings_t *settings = config_get_ptr();
-      menu_animation_update_time(settings->bools.menu_timedate_enable);
-
       if (menu_driver_ctx->render)
          menu_driver_ctx->render(menu_userdata, is_idle);
    }
@@ -1961,6 +2041,9 @@ bool menu_driver_is_texture_set(void)
 /* Iterate the menu driver for one frame. */
 bool menu_driver_iterate(menu_ctx_iterate_t *iterate)
 {
+   /* Get current time */
+   menu_driver_current_time_us = cpu_features_get_time_usec();
+
    /* If the user had requested that the Quick Menu
     * be spawned during the previous frame, do this now
     * and exit the function to go to the next frame.
@@ -2146,7 +2229,7 @@ void menu_driver_set_thumbnail_system(char *s, size_t len)
 void menu_driver_set_thumbnail_content(char *s, size_t len)
 {
    if (menu_driver_ctx && menu_driver_ctx->set_thumbnail_content)
-      menu_driver_ctx->set_thumbnail_content(menu_userdata, s, len);
+      menu_driver_ctx->set_thumbnail_content(menu_userdata, s);
 }
 
 /* Teardown function for the menu driver. */
@@ -2667,7 +2750,28 @@ void hex32_to_rgba_normalized(uint32_t hex, float* rgba, float alpha)
 
 void menu_subsystem_populate(const struct retro_subsystem_info* subsystem, menu_displaylist_info_t *info)
 {
+   settings_t *settings = config_get_ptr();
+   /* Note: Create this string here explicitly (rather than
+    * using a #define elsewhere) since we need to be aware of
+    * its length... */
+#if defined(__APPLE__)
+   /* UTF-8 support is currently broken on Apple devices... */
+   static const char utf8_star_char[] = "*";
+#else
+   /* <BLACK STAR>
+    * UCN equivalent: "\u2605" */
+   static const char utf8_star_char[] = "\xE2\x98\x85";
+#endif
+   char star_char[16];
    unsigned i = 0;
+   int n = 0;
+   bool is_rgui = string_is_equal(settings->arrays.menu_driver, "rgui");
+   
+   /* Select approriate 'star' marker for subsystem menu entries
+    * (i.e. RGUI does not support unicode, so use a 'standard'
+    * character fallback) */
+   snprintf(star_char, sizeof(star_char), "%s", is_rgui ? "*" : utf8_star_char);
+   
    if (subsystem && subsystem_current_count > 0)
    {
       for (i = 0; i < subsystem_current_count; i++, subsystem++)
@@ -2680,8 +2784,41 @@ void menu_subsystem_populate(const struct retro_subsystem_info* subsystem, menu_
                snprintf(s, sizeof(s),
                   "Load %s %s",
                   subsystem->desc,
-                  i == content_get_subsystem()
-                  ? "\u2605" : " ");
+                  star_char);
+               
+               /* If using RGUI with sublabels disabled, add the
+                * appropriate text to the menu entry itself... */
+               if (is_rgui && !settings->bools.menu_show_sublabels)
+               {
+                  char tmp[PATH_MAX_LENGTH];
+                  
+                  n = snprintf(tmp, sizeof(tmp),
+                     "%s [%s %s]", s, "Current Content:",
+                     subsystem->roms[content_get_subsystem_rom_id()].desc);
+
+                  /* Stupid gcc will warn about snprintf() truncation even though
+                   * we couldn't care less about it (if the menu entry label gets
+                   * truncated then the string will already be too long to view in
+                   * any usable manner on screen, so the fact that the end is
+                   * missing is irrelevant). There are two ways to silence this noise:
+                   * 1) Make the destination buffers large enough that text cannot be
+                   *    truncated. This is a waste of memory.
+                   * 2) Check the snprintf() return value (and take action). This is
+                   *    the most harmless option, so we just print a warning if anything
+                   *    is truncated.
+                   * To reiterate: The actual warning generated here is pointless, and
+                   * should be ignored. */
+                  if ((n < 0) || (n >= PATH_MAX_LENGTH))
+                  {
+                     if (verbosity_is_enabled())
+                     {
+                        RARCH_WARN("Menu subsytem entry: Description label truncated.\n");
+                     }
+                  }
+
+                  strlcpy(s, tmp, sizeof(s));
+               }
+               
                menu_entries_append_enum(info->list,
                   s,
                   msg_hash_to_str(MENU_ENUM_LABEL_SUBSYSTEM_ADD),
@@ -2693,8 +2830,41 @@ void menu_subsystem_populate(const struct retro_subsystem_info* subsystem, menu_
                snprintf(s, sizeof(s),
                   "Start %s %s",
                   subsystem->desc,
-                  i == content_get_subsystem()
-                  ? "\u2605" : " ");
+                  star_char);
+               
+               /* If using RGUI with sublabels disabled, add the
+                * appropriate text to the menu entry itself... */
+               if (is_rgui && !settings->bools.menu_show_sublabels)
+               {
+                  unsigned j = 0;
+                  char rom_buff[PATH_MAX_LENGTH];
+                  char tmp[PATH_MAX_LENGTH];
+                  rom_buff[0] = '\0';
+
+                  for (j = 0; j < content_get_subsystem_rom_id(); j++)
+                  {
+                     strlcat(rom_buff, path_basename(content_get_subsystem_rom(j)), sizeof(rom_buff));
+                     if (j != content_get_subsystem_rom_id() - 1)
+                        strlcat(rom_buff, "|", sizeof(rom_buff));
+                  }
+
+                  if (!string_is_empty(rom_buff))
+                  {
+                     n = snprintf(tmp, sizeof(tmp), "%s [%s]", s, rom_buff);
+                     
+                     /* More snprintf() gcc warning suppression... */
+                     if ((n < 0) || (n >= PATH_MAX_LENGTH))
+                     {
+                        if (verbosity_is_enabled())
+                        {
+                           RARCH_WARN("Menu subsytem entry: Description label truncated.\n");
+                        }
+                     }
+                     
+                     strlcpy(s, tmp, sizeof(s));
+                  }
+               }
+               
                menu_entries_append_enum(info->list,
                   s,
                   msg_hash_to_str(MENU_ENUM_LABEL_SUBSYSTEM_LOAD),
@@ -2705,10 +2875,37 @@ void menu_subsystem_populate(const struct retro_subsystem_info* subsystem, menu_
          else
          {
             snprintf(s, sizeof(s),
-               "Load %s %s",
-               subsystem->desc,
-               i == content_get_subsystem()
-               ? "\u2605" : " ");
+               "Load %s",
+               subsystem->desc);
+            
+            /* If using RGUI with sublabels disabled, add the
+             * appropriate text to the menu entry itself... */
+            if (is_rgui && !settings->bools.menu_show_sublabels)
+            {
+               /* This check is probably not required (it's not done
+                * in menu_cbs_sublabel.c action_bind_sublabel_subsystem_add(),
+                * anyway), but no harm in being safe... */
+               if (subsystem->num_roms > 0)
+               {
+                  char tmp[PATH_MAX_LENGTH];
+                  
+                  n = snprintf(tmp, sizeof(tmp),
+                     "%s [%s %s]", s, "Current Content:",
+                     subsystem->roms[0].desc);
+                  
+                  /* More snprintf() gcc warning suppression... */
+                  if ((n < 0) || (n >= PATH_MAX_LENGTH))
+                  {
+                     if (verbosity_is_enabled())
+                     {
+                        RARCH_WARN("Menu subsytem entry: Description label truncated.\n");
+                     }
+                  }
+                  
+                  strlcpy(s, tmp, sizeof(s));
+               }
+            }
+            
             menu_entries_append_enum(info->list,
                s,
                msg_hash_to_str(MENU_ENUM_LABEL_SUBSYSTEM_ADD),

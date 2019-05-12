@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -22,6 +22,7 @@
 
 #include <lists/string_list.h>
 #include <retro_common_api.h>
+#include <retro_miscellaneous.h>
 
 RETRO_BEGIN_DECLS
 
@@ -70,7 +71,7 @@ typedef struct
 {
    core_info_t *list;
    size_t count;
-   char *all_ext;
+   char all_ext[PATH_MAX_LENGTH];
 } core_info_list_t;
 
 typedef struct core_info_ctx_firmware
@@ -101,7 +102,8 @@ bool core_info_get_display_name(const char *path, char *s, size_t len);
 
 void core_info_get_name(const char *path, char *s, size_t len,
       const char *path_info, const char *dir_cores,
-      const char *exts, bool show_hidden_files);
+      const char *exts, bool show_hidden_files,
+      bool get_display_name);
 
 core_info_t *core_info_get(core_info_list_t *list, size_t i);
 

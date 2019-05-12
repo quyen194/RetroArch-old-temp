@@ -148,7 +148,7 @@ MSG_HASH(
       )
 MSG_HASH(
       MENU_ENUM_SUBLABEL_MENU_HORIZONTAL_ANIMATION,
-      "Enable horizontal animation for the menu. This will have a performance hit."
+      "Włącz animację poziomą menu. Zwiększy wydajność."
       )
 MSG_HASH(
       MENU_ENUM_SUBLABEL_MENU_SETTINGS,
@@ -535,10 +535,6 @@ MSG_HASH(
       "Zapisz konfigurację przy wyjściu"
       )
 MSG_HASH(
-      MENU_ENUM_LABEL_VALUE_CONTENT_COLLECTION_LIST,
-      "Kolekcje"
-      )
-MSG_HASH(
       MENU_ENUM_LABEL_VALUE_CONTENT_DATABASE_DIRECTORY,
       "Baza danych"
       )
@@ -763,8 +759,6 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_LIGHTGUN_DPAD_RIGHT,
       "D-pad prawo")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_AUTODETECT_ENABLE,
       "Włącz autoconfig")
-MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_AXIS_THRESHOLD,
-      "Martwa strefa gałki analogowej")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_MENU_INPUT_SWAP_OK_CANCEL,
       "Zamień przyciski menu ok i anuluj")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_BIND_ALL,
@@ -902,7 +896,7 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_META_REWIND,
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_META_SAVE_STATE_KEY,
       "Zapisz stan")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_META_SCREENSHOT,
-      "Zrob zrzut ekranu")
+      "Zrób zrzut ekranu")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_META_SHADER_NEXT,
       "Następny moduł cieniujący")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_META_SHADER_PREV,
@@ -936,7 +930,7 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_POLL_TYPE_BEHAVIOR_LATE,
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_POLL_TYPE_BEHAVIOR_NORMAL,
       "Normalny")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_PREFER_FRONT_TOUCH,
-      "Preferuj dotyk")
+      "Preferuj sterowanie dotykiem")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_REMAPPING_DIRECTORY,
       "Odwzorowanie wejścia")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_INPUT_REMAP_BINDS_ENABLE,
@@ -999,6 +993,10 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_LANG_VIETNAMESE,
       "wietnamski")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_LANG_ARABIC,
       "arabski")
+MSG_HASH(MENU_ENUM_LABEL_VALUE_LANG_GREEK,
+      "grščina")
+MSG_HASH(MENU_ENUM_LABEL_VALUE_LANG_TURKISH,
+      "turščina")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_LEFT_ANALOG,
       "Lewy analog")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_LIBRETRO_DIR_PATH,
@@ -1246,7 +1244,7 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_PERFCNT_ENABLE,
 MSG_HASH(MENU_ENUM_LABEL_VALUE_PLAYLISTS_TAB,
       "Listy odtwarzania")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_PLAYLIST_DIRECTORY,
-      "Playlista")
+      "Listy odtwarzania")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_PLAYLIST_SETTINGS,
       "Listy odtwarzania")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_POINTER_ENABLE,
@@ -1568,8 +1566,6 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_LIBRETRODB_SUPPORT,
       "Obsługa LibretroDB")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_LIBUSB_SUPPORT,
       "Wsparcie Libusb")
-MSG_HASH(MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_LIBXML2_SUPPORT,
-      "Libxml2 obsługa parowania XML")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_NETPLAY_SUPPORT,
       "Wsparcie Gry online (peer-to-peer)")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_NETWORK_COMMAND_IFACE_SUPPORT,
@@ -1740,8 +1736,10 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_CROP_OVERSCAN,
       "Przytnij Overscan (Przeładuj)")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_DISABLE_COMPOSITION,
       "Wyłącz kompozycję pulpitu")
+#if defined(_3DS)
 MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_3DS_LCD_BOTTOM,
       "Dolny ekran 3DS")
+#endif
 MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_DRIVER,
       "Sterownik wideo")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_FILTER,
@@ -2503,10 +2501,6 @@ MSG_HASH(
    "Synchronizuj dźwięk. Zalecane."
    )
 MSG_HASH(
-   MENU_ENUM_SUBLABEL_INPUT_AXIS_THRESHOLD,
-   "Jak daleko oś musi być przechylona, aby spowodować naciśnięcie przycisku."
-   )
-MSG_HASH(
    MENU_ENUM_SUBLABEL_INPUT_BIND_TIMEOUT,
    "Ilość sekund oczekiwania na przejście do następnej więzi."
    )
@@ -2645,8 +2639,6 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_BATTERY_LEVEL_ENABLE,
       "Pokaż poziom naładowania baterii")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_SELECT_FILE,
       "Wybierz plik")
-MSG_HASH(MENU_ENUM_LABEL_VALUE_SELECT_FROM_COLLECTION,
-      "Wybierz z kolekcji")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_FILTER,
       "Filtr")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_SCALE,
@@ -2724,7 +2716,7 @@ MSG_HASH(MENU_ENUM_SUBLABEL_INPUT_OVERLAY_SHOW_PHYSICAL_INPUTS,
 MSG_HASH(MENU_ENUM_SUBLABEL_INPUT_OVERLAY_SHOW_PHYSICAL_INPUTS_PORT,
       "Wybierz port dla nakładki, aby usłyszeć, czy opcja Pokaż nakładki na nakładkę jest włączona.")
 MSG_HASH(
-      MENU_ENUM_SUBLABEL_CONTENT_COLLECTION_LIST,
+      MENU_ENUM_SUBLABEL_PLAYLISTS_TAB,
       "Tutaj pojawi się skanowana zawartość."
       )
 MSG_HASH(
@@ -3007,9 +2999,9 @@ MSG_HASH(MENU_ENUM_SUBLABEL_NETPLAY_ENABLE_CLIENT,
 MSG_HASH(MENU_ENUM_SUBLABEL_NETPLAY_DISCONNECT,
       "Odłącz aktywne połączenie gry online.")
 MSG_HASH(MENU_ENUM_SUBLABEL_SCAN_DIRECTORY,
-      "Skanuje katalog w poszukiwaniu kompatybilnych plików i dodaje je do kolekcji.")
+      "Skanuje katalog w poszukiwaniu kompatybilnych plików.")
 MSG_HASH(MENU_ENUM_SUBLABEL_SCAN_FILE,
-      "Skanuje zgodny plik i dodaje go do kolekcji.")
+      "Skanuje zgodny plik.")
 MSG_HASH(MENU_ENUM_SUBLABEL_VIDEO_SWAP_INTERVAL,
       "Używa niestandardowego interwału wymiany dla Vsync. Ustaw, aby efektywnie zmniejszyć o połowę częstotliwość odświeżania monitora."
       )
@@ -3030,8 +3022,6 @@ MSG_HASH(MENU_ENUM_SUBLABEL_CORE_UPDATER_AUTO_EXTRACT_ARCHIVE,
       )
 MSG_HASH(MENU_ENUM_SUBLABEL_NETPLAY_REFRESH_ROOMS,
       "Zeskanuj nowe pokoje.")
-MSG_HASH(MENU_ENUM_SUBLABEL_DELETE_ENTRY,
-      "Usuń ten wpis z kolekcji.")
 MSG_HASH(MENU_ENUM_SUBLABEL_INFORMATION,
       "Zobacz więcej informacji o zawartości.")
 MSG_HASH(MENU_ENUM_SUBLABEL_ADD_TO_FAVORITES,
@@ -3106,8 +3096,6 @@ MSG_HASH(MENU_ENUM_SUBLABEL_SHOW_ADVANCED_SETTINGS,
       "Pokaż zaawansowane ustawienia dla zaawansowanych użytkowników (domyślnie ukryty).")
 MSG_HASH(MENU_ENUM_SUBLABEL_THREADED_DATA_RUNLOOP_ENABLE,
       "Wykonuj zadania w oddzielnym wątku.")
-MSG_HASH(MENU_ENUM_SUBLABEL_PLAYLIST_ENTRY_REMOVE,
-      "Pozwól użytkownikowi usuwać wpisy ze zbiorów.")
 MSG_HASH(MENU_ENUM_SUBLABEL_SYSTEM_DIRECTORY,
       "Ustawia katalog systemowy. Rdzenie mogą wysyłać zapytania do tego katalogu, aby załadować BIOS, konfiguracje specyficzne dla systemu itp.")
 MSG_HASH(MENU_ENUM_SUBLABEL_RGUI_BROWSER_DIRECTORY,
@@ -3191,8 +3179,6 @@ MSG_HASH(MENU_ENUM_SUBLABEL_LIBRETRO_INFO_PATH,
       "Pliki informacji o aplikacji/rdzeniu przechowywane są tutaj .")
 MSG_HASH(MENU_ENUM_SUBLABEL_JOYPAD_AUTOCONFIG_DIR,
       "Jeśli joypad jest podłączony, to zostanie automatycznie skonfigurowany, jeśli plik konfiguracyjny odpowiadający mu jest obecny w tym katalogu.")
-MSG_HASH(MENU_ENUM_SUBLABEL_PLAYLIST_DIRECTORY,
-      "Zapisz wszystkie kolekcje w tym katalogu.")
 MSG_HASH(
       MENU_ENUM_SUBLABEL_CACHE_DIRECTORY,
       "Jeśli ustawione na katalog, zawartość, która jest czasowo wyodrębniana (np. Z archiwów), zostanie wyodrębniona do tego katalogu."
@@ -3377,8 +3363,6 @@ MSG_HASH(MENU_ENUM_SUBLABEL_XMB_MAIN_MENU_ENABLE_SETTINGS,
       "Włącza kartę Ustawienia. Wymagane jest ponowne uruchomienie karty.")
 MSG_HASH(MENU_ENUM_SUBLABEL_CONTENT_SHOW_SETTINGS_PASSWORD,
       "Podanie hasła podczas ukrywania karty ustawień pozwala później przywrócić ją z menu, przechodząc do karty Menu główne, wybierając opcję Włącz kartę Ustawienia i wprowadzając hasło.")
-MSG_HASH(MENU_ENUM_SUBLABEL_PLAYLIST_ENTRY_RENAME,
-      "Zezwalaj użytkownikowi na zmianę nazw wpisów w kolekcjach.")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_PLAYLIST_ENTRY_RENAME,
       "Zezwalaj na zmianę nazw wpisów")
 MSG_HASH(MENU_ENUM_SUBLABEL_RENAME_ENTRY,
@@ -3438,17 +3422,17 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_QUICK_MENU_SHOW_ADD_TO_FAVORITES,
 MSG_HASH(MENU_ENUM_SUBLABEL_QUICK_MENU_SHOW_ADD_TO_FAVORITES,
       "Pokaż/ukryj opcję 'Dodaj do ulubionych'.")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_QUICK_MENU_SHOW_START_RECORDING,
-      "Show Start Recording")
+      "Pokaż Rozpocznij nagrywanie")
 MSG_HASH(MENU_ENUM_SUBLABEL_QUICK_MENU_SHOW_START_RECORDING,
-      "Show/hide the 'Start Recording' option.")
+      "Pokaż/ukryj opcję 'Rozpocznij nagrywanie'.")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_QUICK_MENU_SHOW_START_STREAMING,
-      "Show Start Streaming")
+      "Pokaż rozpoczęcie strumieniowanie")
 MSG_HASH(MENU_ENUM_SUBLABEL_QUICK_MENU_SHOW_START_STREAMING,
-      "Show/hide the 'Start Streaming' option.")
+      "Pokaż / ukryj opcję 'Rozpocznij transmisję'.")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_QUICK_MENU_SHOW_RESET_CORE_ASSOCIATION,
-      "Show Reset Core Association")
+      "Pokaż Resetuj podstawowe skojarzenie")
 MSG_HASH(MENU_ENUM_SUBLABEL_QUICK_MENU_SHOW_RESET_CORE_ASSOCIATION,
-      "Show/hide the 'Reset Core Association' option.")
+      "Pokaż/ukryj opcję 'Resetuj podstawowe skojarzenie'.")
 MSG_HASH(MENU_ENUM_LABEL_VALUE_QUICK_MENU_SHOW_OPTIONS,
       "Pokaż opcje")
 MSG_HASH(MENU_ENUM_SUBLABEL_QUICK_MENU_SHOW_OPTIONS,
@@ -3812,9 +3796,17 @@ MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_WINDOW_SAVE_POSITION,
       "Zapamiętaj położenie i rozmiar okna")
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_COREAUDIO_SUPPORT,
-    "CoreAudio support"
+    "Obsługa CoreAudio"
     )
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_COREAUDIO3_SUPPORT,
-    "CoreAudio V3 support"
+    "Obsługa CoreAudio V3"
     )
+MSG_HASH(MENU_ENUM_LABEL_VALUE_MENU_WIDGETS_ENABLE,
+      "Menu widgetów")
+MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_SHADERS_ENABLE,
+      "Video Shaders")
+MSG_HASH(MENU_ENUM_LABEL_VALUE_SCAN_WITHOUT_CORE_MATCH,
+      "Scan without core match")
+MSG_HASH(MENU_ENUM_SUBLABEL_SCAN_WITHOUT_CORE_MATCH,
+      "When disabled, content is only added to playlists if you have a core installed that supports its extension. By enabling this, it will add to playlist regardless. This way, you can install the core you need later on after scanning.")

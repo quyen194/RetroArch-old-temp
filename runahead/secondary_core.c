@@ -81,11 +81,11 @@ static char *get_temp_directory_alloc(void)
       path = strcpy_alloc_force(settings->paths.directory_libretro);
    }
 #else
-   path = "/tmp";
    if (getenv("TMPDIR"))
-      path = getenv("TMPDIR");
+      path = strcpy_alloc_force(getenv("TMPDIR"));
+   else
+      path = strcpy_alloc_force("/tmp");
 
-   path = strcpy_alloc_force(path);
 #endif
    return path;
 }
@@ -241,7 +241,7 @@ static bool secondary_core_create(void)
    bool contentless       = false;
    bool is_inited         = false;
 
-   if (  last_core_type != CORE_TYPE_PLAIN || 
+   if (  last_core_type != CORE_TYPE_PLAIN ||
          !load_content_info                ||
          load_content_info->special)
       return false;
@@ -342,28 +342,30 @@ static void secondary_core_input_poll_null(void) { }
 
 bool secondary_core_run_use_last_input(void)
 {
-   if (secondary_core_ensure_exists())
-   {
-      retro_input_poll_t old_poll_function = secondary_callbacks.poll_cb;
-      retro_input_state_t old_input_function = secondary_callbacks.state_cb;
+   retro_input_poll_t old_poll_function;
+   retro_input_state_t old_input_function;
 
-      secondary_callbacks.poll_cb = secondary_core_input_poll_null;
-      secondary_callbacks.state_cb = input_state_get_last;
+   if (!secondary_core_ensure_exists())
+      return false;
 
-      secondary_core.retro_set_input_poll(secondary_callbacks.poll_cb);
-      secondary_core.retro_set_input_state(secondary_callbacks.state_cb);
+   old_poll_function            = secondary_callbacks.poll_cb;
+   old_input_function           = secondary_callbacks.state_cb;
 
-      secondary_core.retro_run();
+   secondary_callbacks.poll_cb  = secondary_core_input_poll_null;
+   secondary_callbacks.state_cb = input_state_get_last;
 
-      secondary_callbacks.poll_cb = old_poll_function;
-      secondary_callbacks.state_cb = old_input_function;
+   secondary_core.retro_set_input_poll(secondary_callbacks.poll_cb);
+   secondary_core.retro_set_input_state(secondary_callbacks.state_cb);
 
-      secondary_core.retro_set_input_poll(secondary_callbacks.poll_cb);
-      secondary_core.retro_set_input_state(secondary_callbacks.state_cb);
+   secondary_core.retro_run();
 
-      return true;
-   }
-   return false;
+   secondary_callbacks.poll_cb  = old_poll_function;
+   secondary_callbacks.state_cb = old_input_function;
+
+   secondary_core.retro_set_input_poll(secondary_callbacks.poll_cb);
+   secondary_core.retro_set_input_state(secondary_callbacks.state_cb);
+
+   return true;
 }
 
 bool secondary_core_deserialize(const void *buffer, int size)

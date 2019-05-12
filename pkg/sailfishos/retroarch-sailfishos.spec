@@ -1,5 +1,5 @@
 Name:           retroarch
-Version:        1.7.5
+Version:        1.7.7
 Release:        v1.2
 Summary:        Official reference frontend for libretro
 
@@ -7,7 +7,6 @@ Group:          Applications/Emulators
 License:        GPLv3+
 URL:            http://www.libretro.com/
 
-BuildRequires:  libxml2-devel
 BuildRequires:  mesa-llvmpipe-libwayland-egl-devel
 BuildRequires:  pulseaudio-devel
 BuildRequires:  OpenAL-devel

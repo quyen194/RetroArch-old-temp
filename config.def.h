@@ -32,6 +32,11 @@
 #include "network/netplay/netplay.h"
 #endif
 
+/* Required for 3DS display mode setting */
+#if defined(_3DS)
+#include "gfx/common/ctr_common.h"
+#endif
+
 #if defined(HW_RVL)
 #define MAX_GAMMA_SETTING 30
 #elif defined(GEKKO)
@@ -68,8 +73,8 @@ static bool bundle_assets_extract_enable = false;
 static bool materialui_icons_enable      = true;
 #endif
 
-static const unsigned crt_switch_resolution  = CRT_SWITCH_NONE; 	
-static const int crt_switch_resolution_super = 2560; 
+static const unsigned crt_switch_resolution  = CRT_SWITCH_NONE;
+static const int crt_switch_resolution_super = 2560;
 static const int crt_switch_center_adjust    = 0;
 
 static const bool def_history_list_enable    = true;
@@ -272,6 +277,7 @@ static const float default_input_overlay_opacity = 0.7f;
 
 #ifdef HAVE_MENU
 #include "menu/menu_driver.h"
+#include "menu/menu_animation.h"
 
 static bool default_block_config_read    = true;
 
@@ -279,6 +285,10 @@ static bool default_block_config_read    = true;
 static bool menu_use_preferred_system_color_theme = true;
 #else
 static bool menu_use_preferred_system_color_theme = false;
+#endif
+
+#ifdef HAVE_OZONE
+static bool ozone_collapse_sidebar = false;
 #endif
 
 static bool quick_menu_show_take_screenshot             = true;
@@ -321,6 +331,10 @@ static bool menu_show_core_updater       = false;
 #else
 static bool menu_show_core_updater       = true;
 #endif
+static bool menu_show_sublabels          = true;
+
+static unsigned menu_ticker_type         = TICKER_TYPE_BOUNCE;
+static float menu_ticker_speed           = 1.0f;
 
 static bool content_show_settings    = true;
 static bool content_show_favorites   = true;
@@ -372,8 +386,20 @@ static unsigned menu_shader_pipeline = 1;
 static unsigned menu_shader_pipeline = 2;
 #endif
 
-static bool show_advanced_settings            = false;
-static unsigned rgui_color_theme = RGUI_THEME_CLASSIC_GREEN;
+static bool show_advanced_settings        = false;
+
+static unsigned rgui_color_theme          = RGUI_THEME_CLASSIC_GREEN;
+static bool rgui_inline_thumbnails = false;
+static bool rgui_swap_thumbnails = false;
+static unsigned rgui_thumbnail_downscaler = RGUI_THUMB_SCALE_POINT;
+static unsigned rgui_thumbnail_delay = 0;
+static unsigned rgui_internal_upscale_level = RGUI_UPSCALE_NONE;
+static bool rgui_full_width_layout = true;
+static unsigned rgui_aspect = RGUI_ASPECT_RATIO_4_3;
+static unsigned rgui_aspect_lock = RGUI_ASPECT_RATIO_LOCK_NONE;
+static bool rgui_shadows = false;
+static unsigned rgui_particle_effect = RGUI_PARTICLE_EFFECT_NONE;
+static bool rgui_extended_ascii = false;
 
 #else
 static bool default_block_config_read = false;
@@ -421,6 +447,11 @@ static bool menu_swap_ok_cancel_buttons = true;
 #else
 static bool menu_swap_ok_cancel_buttons = true;  // QuyenNC mod
 #endif
+
+static bool quit_press_twice = false;
+
+static bool default_log_to_file = false;
+static bool log_to_file_timestamp = false;
 
 /* Crop overscanned frames. */
 static const bool crop_overscan = true;
@@ -493,9 +524,11 @@ static const float crt_refresh_rate = 60/1.001;
  * Used for setups where one manually rotates the monitor. */
 static const bool allow_rotate = true;
 
-#ifdef _3DS
+#if defined(_3DS)
 /* Enable bottom LCD screen */
 static const bool video_3ds_lcd_bottom = true;
+/* Sets video display mode (3D, 2D, etc.) */
+static const unsigned video_3ds_display_mode = CTR_VIDEO_MODE_3D;
 #endif
 
 /* AUDIO */
@@ -504,11 +537,17 @@ static const bool video_3ds_lcd_bottom = true;
 static const bool audio_enable = true;
 
 /* Enable menu audio sounds. */
-static const bool audio_enable_menu = false;
-static const bool audio_enable_menu_ok = false;
+static const bool audio_enable_menu        = false;
+static const bool audio_enable_menu_ok     = false;
 static const bool audio_enable_menu_cancel = false;
 static const bool audio_enable_menu_notice = false;
-static const bool audio_enable_menu_bgm = false;
+static const bool audio_enable_menu_bgm    = false;
+
+#ifdef HAVE_MENU_WIDGETS
+static const bool menu_enable_widgets      = true;
+#else
+static const bool menu_enable_widgets      = false;
+#endif
 
 /* Output samplerate. */
 #ifdef GEKKO
@@ -572,6 +611,9 @@ static const bool framecount_show = false;
 
 /* Includes displaying the current memory usage/total with FPS/Frames. */
 static const bool memory_show = false;
+
+/* Enables displaying various timing statistics. */
+static const bool statistics_show = false;
 
 /* Enables use of rewind. This will incur some memory footprint
  * depending on the save state buffer. */
@@ -691,8 +733,25 @@ static const uint16_t network_remote_base_port = 55400;
 /* Number of entries that will be kept in content history playlist file. */
 static const unsigned default_content_history_size = 100;
 
+/* Sort all playlists (apart from histories) alphabetically */
+static const bool playlist_sort_alphabetical = true;
+
 /* File format to use when writing playlists to disk */
 static const bool playlist_use_old_format = false;
+
+#ifdef HAVE_MENU
+/* Specify when to display 'core name' inline on playlist entries */
+static const unsigned playlist_show_inline_core_name = PLAYLIST_INLINE_CORE_DISPLAY_HIST_FAV;
+
+/* Specifies which runtime record to use on playlist sublabels */
+static const unsigned playlist_sublabel_runtime_type = PLAYLIST_RUNTIME_PER_CORE;
+#endif
+
+static const bool scan_without_core_match      = false;
+
+static const bool playlist_show_sublabels      = false;
+
+static const bool playlist_fuzzy_archive_match = false;
 
 /* Show Menu start-up screen on boot. */
 static const bool default_menu_show_start_screen = true;
@@ -727,7 +786,11 @@ static const unsigned libretro_log_level = 1;
 
 /* Axis threshold (between 0.0 and 1.0)
  * How far an axis must be tilted to result in a button press. */
-static const float axis_threshold = 0.5;
+static const float axis_threshold = 0.5f;
+
+static const float analog_deadzone = 0.0f;
+
+static const float analog_sensitivity = 1.0f;
 
 /* Describes speed of which turbo-enabled buttons toggle. */
 static const unsigned turbo_period = 6;
@@ -749,7 +812,7 @@ static const unsigned input_poll_type_behavior = 2;
 
 static const unsigned input_bind_timeout = 5;
 
-static const unsigned input_bind_hold = 2;
+static const unsigned input_bind_hold = 1;
 
 static const unsigned menu_thumbnails_default = 3;
 
@@ -758,8 +821,6 @@ static const unsigned menu_left_thumbnails_default = 0;
 static const unsigned menu_timedate_style = 5;
 
 static const bool xmb_vertical_thumbnails = false;
-
-static unsigned rgui_thumbnail_downscaler = RGUI_THUMB_SCALE_POINT;
 
 #ifdef IOS
 static const bool ui_companion_start_on_boot = false;
@@ -774,6 +835,12 @@ static const bool ui_companion_toggle = false;
 
 /* Only init the WIMP UI for this session if this is enabled */
 static const bool desktop_menu_enable = true;
+
+/* Keep track of how long each core+content has been running for over time */
+static const bool content_runtime_log = false;
+
+/* Keep track of how long each content has been running for over time (ignores core) */
+static const bool content_runtime_log_aggregate = false;
 
 #if defined(__QNX__) || defined(_XBOX1) || defined(_XBOX360) || defined(__CELLOS_LV2__) || (defined(__MACH__) && defined(IOS)) || defined(ANDROID) || defined(WIIU) || defined(HAVE_NEON) || defined(GEKKO) || defined(__ARM_NEON__)
 static enum resampler_quality audio_resampler_quality_level = RESAMPLER_QUALITY_LOWER;
@@ -790,6 +857,9 @@ static const unsigned midi_volume = 100;
 
 /* Only applies to Android 7.0 (API 24) and up */
 static const bool sustained_performance_mode = false;
+
+static const bool vibrate_on_keypress = false;
+static const bool enable_device_vibration = false;
 
 #if defined(HAKCHI)
 static char buildbot_server_url[] = "http://hakchicloud.com/Libretro_Cores/";
@@ -826,6 +896,8 @@ static char buildbot_server_url[] = "http://buildbot.libretro.com/nightly/apple/
 static char buildbot_server_url[] = "http://buildbot.libretro.com/nightly/windows-msvc2017-desktop/x86_64/latest/";
 #elif defined(__i386__) || defined(__i486__) || defined(__i686__) || defined(_M_IX86) || defined(_M_IA64)
 static char buildbot_server_url[] = "http://buildbot.libretro.com/nightly/windows-msvc2017-desktop/x86/latest/";
+#elif  defined(__arm__) || defined(_M_ARM)
+static char buildbot_server_url[] = "http://buildbot.libretro.com/nightly/windows-msvc2017-desktop/arm/latest/";
 #endif
 #else
 #if defined(__x86_64__) || defined(_M_X64)

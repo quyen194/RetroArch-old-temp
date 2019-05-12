@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2011-2017 - Daniel De Matteis
  *  Copyright (C) 2014-2017 - Jean-André Santoni
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *  Copyright (C) 2018      - Alfredo Monclús
  *  Copyright (C) 2018      - natinusala
  *
@@ -26,6 +26,7 @@
 #include "../../menu_driver.h"
 
 #include "../../../cheevos/badges.h"
+#include "../../../verbosity.h"
 
 menu_texture_item ozone_entries_icon_get_texture(ozone_handle_t *ozone,
       enum msg_hash_enums enum_idx, unsigned type, bool active)
@@ -80,7 +81,7 @@ menu_texture_item ozone_entries_icon_get_texture(ozone_handle_t *ozone,
          return ozone->icons_textures[OZONE_ENTRIES_ICONS_TEXTURE_RDB];
 
       /* Menu collection submenus*/
-      case MENU_ENUM_LABEL_CONTENT_COLLECTION_LIST:
+      case MENU_ENUM_LABEL_PLAYLISTS_TAB:
          return ozone->icons_textures[OZONE_ENTRIES_ICONS_TEXTURE_ZIP];
       case MENU_ENUM_LABEL_GOTO_FAVORITES:
          return ozone->icons_textures[OZONE_ENTRIES_ICONS_TEXTURE_FAVORITE];
@@ -147,6 +148,7 @@ menu_texture_item ozone_entries_icon_get_texture(ozone_handle_t *ozone,
       case MENU_ENUM_LABEL_HELP_WHAT_IS_A_CORE:
       case MENU_ENUM_LABEL_HELP_CHANGE_VIRTUAL_GAMEPAD:
       case MENU_ENUM_LABEL_HELP_AUDIO_VIDEO_TROUBLESHOOTING:
+      case MENU_ENUM_LABEL_HELP_SEND_DEBUG_INFO:
             return ozone->icons_textures[OZONE_ENTRIES_ICONS_TEXTURE_HELP];
       case MENU_ENUM_LABEL_QUIT_RETROARCH:
       case MENU_ENUM_LABEL_BLOCK_SRAM_OVERWRITE:
@@ -226,6 +228,7 @@ menu_texture_item ozone_entries_icon_get_texture(ozone_handle_t *ozone,
       case MENU_ENUM_LABEL_NETWORK_INFORMATION:
       case MENU_ENUM_LABEL_NETWORK_SETTINGS:
       case MENU_ENUM_LABEL_WIFI_SETTINGS:
+      case MENU_ENUM_LABEL_NETWORK_INFO_ENTRY:
             return ozone->icons_textures[OZONE_ENTRIES_ICONS_TEXTURE_NETWORK];
       case MENU_ENUM_LABEL_PLAYLIST_SETTINGS:
             return ozone->icons_textures[OZONE_ENTRIES_ICONS_TEXTURE_PLAYLIST];
@@ -529,6 +532,14 @@ switch (id)
          return "battery-full.png";
       case OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_CHARGING:
          return "battery-charging.png";
+      case OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_80:
+         return "battery-80.png";
+      case OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_60:
+         return "battery-60.png";
+      case OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_40:
+         return "battery-40.png";
+      case OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_20:
+         return "battery-20.png";
       case OZONE_ENTRIES_ICONS_TEXTURE_POINTER:
          return "pointer.png";
       case OZONE_ENTRIES_ICONS_TEXTURE_SAVESTATE:
@@ -725,8 +736,7 @@ switch (id)
 
 void ozone_unload_theme_textures(ozone_handle_t *ozone)
 {
-   int i;
-   int j;
+   unsigned i, j;
 
    for (j = 0; j < ozone_themes_count; j++)
    {
@@ -738,8 +748,7 @@ void ozone_unload_theme_textures(ozone_handle_t *ozone)
 
 bool ozone_reset_theme_textures(ozone_handle_t *ozone)
 {
-   int i;
-   int j;
+   unsigned i, j;
    char theme_path[255];
    bool result = true;
 
@@ -760,8 +769,11 @@ bool ozone_reset_theme_textures(ozone_handle_t *ozone)
          strlcpy(filename, OZONE_THEME_TEXTURES_FILES[i], sizeof(filename));
          strlcat(filename, ".png", sizeof(filename));
 
-         if (!menu_display_reset_textures_list(filename, theme_path, &theme->textures[i], TEXTURE_FILTER_MIPMAP_LINEAR))
+         if (!menu_display_reset_textures_list(filename, theme_path, &theme->textures[i], TEXTURE_FILTER_MIPMAP_LINEAR, NULL, NULL))
+         {
+            RARCH_WARN("[OZONE] Asset missing: %s%s%s\n", theme_path, path_default_slash(), filename);
             result = false;
+         }
       }
    }
 

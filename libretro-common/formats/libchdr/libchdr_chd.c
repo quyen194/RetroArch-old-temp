@@ -952,7 +952,7 @@ chd_error chd_open(const char *filename, int mode, chd_file *parent, chd_file **
 	}
 
 	/* open the file */
-	file = filestream_open(filename, 
+	file = filestream_open(filename,
          RETRO_VFS_FILE_ACCESS_READ,
          RETRO_VFS_FILE_ACCESS_HINT_NONE);
 
@@ -1335,7 +1335,7 @@ static UINT32 header_guess_unitbytes(chd_file *chd)
 {
 	/* look for hard disk metadata; if found, then the unit size == sector size */
 	char metadata[512];
-	int i0, i1, i2, i3;
+	unsigned int i0, i1, i2, i3;
 	if (chd_get_metadata(chd, HARD_DISK_METADATA_TAG, 0, metadata, sizeof(metadata), NULL, NULL, NULL) == CHDERR_NONE &&
 		sscanf(metadata, HARD_DISK_METADATA_FORMAT, &i0, &i1, &i2, &i3) == 4)
 		return i3;

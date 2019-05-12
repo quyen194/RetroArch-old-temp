@@ -108,7 +108,7 @@ const char *path_get_extension(const char *path);
  * text after and including the last '.'.
  * Only '.'s after the last slash are considered.
  *
- * Returns: 
+ * Returns:
  * 1) If path has an extension, returns path with the
  *    extension removed.
  * 2) If there is no extension, returns NULL.
@@ -497,6 +497,8 @@ bool path_is_character_special(const char *path);
 bool path_is_valid(const char *path);
 
 int32_t path_get_size(const char *path);
+
+bool is_path_accessible_using_standard_io(const char *path);
 
 RETRO_END_DECLS
 

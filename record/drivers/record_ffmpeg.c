@@ -29,6 +29,7 @@
 #include <gfx/video_frame.h>
 #include <file/config_file.h>
 #include <audio/audio_resampler.h>
+#include <string/stdstring.h>
 #include <audio/conversion/float_to_s16.h>
 #include <audio/conversion/s16_to_float.h>
 
@@ -571,7 +572,7 @@ static bool ffmpeg_init_config_common(struct ff_config_param *params, unsigned p
          params->out_pix_fmt          = PIX_FMT_YUV420P;
 
          strlcpy(params->vcodec, "libx264", sizeof(params->vcodec));
-         strlcpy(params->acodec, "libmp3lame", sizeof(params->acodec));
+         strlcpy(params->acodec, "aac", sizeof(params->acodec));
 
          av_dict_set(&params->video_opts, "preset", "ultrafast", 0);
          av_dict_set(&params->video_opts, "tune", "animation", 0);
@@ -587,7 +588,7 @@ static bool ffmpeg_init_config_common(struct ff_config_param *params, unsigned p
          params->out_pix_fmt          = PIX_FMT_YUV420P;
 
          strlcpy(params->vcodec, "libx264", sizeof(params->vcodec));
-         strlcpy(params->acodec, "libmp3lame", sizeof(params->acodec));
+         strlcpy(params->acodec, "aac", sizeof(params->acodec));
 
          av_dict_set(&params->video_opts, "preset", "superfast", 0);
          av_dict_set(&params->video_opts, "tune", "animation", 0);
@@ -603,7 +604,7 @@ static bool ffmpeg_init_config_common(struct ff_config_param *params, unsigned p
          params->out_pix_fmt          = PIX_FMT_YUV444P;
 
          strlcpy(params->vcodec, "libx264", sizeof(params->vcodec));
-         strlcpy(params->acodec, "libmp3lame", sizeof(params->acodec));
+         strlcpy(params->acodec, "aac", sizeof(params->acodec));
 
          av_dict_set(&params->video_opts, "preset", "superfast", 0);
          av_dict_set(&params->video_opts, "tune", "animation", 0);
@@ -663,7 +664,7 @@ static bool ffmpeg_init_config_common(struct ff_config_param *params, unsigned p
          strlcpy(params->vcodec, "gif", sizeof(params->vcodec));
          strlcpy(params->acodec, "", sizeof(params->acodec));
 
-         av_dict_set(&params->video_opts, "framerate", "50", 0);
+         av_dict_set(&params->video_opts, "framerate", "30", 0);
          av_dict_set(&params->audio_opts, "audio_global_quality", "0", 0);
          break;
       case RECORD_CONFIG_TYPE_STREAMING_NETPLAY:
@@ -688,34 +689,30 @@ static bool ffmpeg_init_config_common(struct ff_config_param *params, unsigned p
    if (preset <= RECORD_CONFIG_TYPE_RECORDING_LOSSLESS_QUALITY)
    {
       if (!settings->bools.video_gpu_record)
-         params->scale_factor = settings->uints.video_record_scale_factor > 0 ? 
+         params->scale_factor = settings->uints.video_record_scale_factor > 0 ?
             settings->uints.video_record_scale_factor : 1;
       else
          params->scale_factor = 1;
       strlcpy(params->format, "matroska", sizeof(params->format));
    }
-   else if (preset >= RECORD_CONFIG_TYPE_RECORDING_WEBM_FAST && settings->uints.video_record_quality < RECORD_CONFIG_TYPE_RECORDING_GIF)
+   else if (preset >= RECORD_CONFIG_TYPE_RECORDING_WEBM_FAST && preset < RECORD_CONFIG_TYPE_RECORDING_GIF)
    {
       if (!settings->bools.video_gpu_record)
-         params->scale_factor = settings->uints.video_record_scale_factor > 0 ? 
+         params->scale_factor = settings->uints.video_record_scale_factor > 0 ?
             settings->uints.video_record_scale_factor : 1;
       else
          params->scale_factor = 1;
       strlcpy(params->format, "webm", sizeof(params->format));
    }
-   else if (preset <= RECORD_CONFIG_TYPE_STREAMING_LOW_QUALITY)
+   else if (preset < RECORD_CONFIG_TYPE_STREAMING_LOW_QUALITY)
    {
-      if (!settings->bools.video_gpu_record)
-         params->scale_factor = settings->uints.video_record_scale_factor > 0 ? 
-            settings->uints.video_record_scale_factor : 1;
-      else
-         params->scale_factor = 1;
+      params->scale_factor = 1;
       strlcpy(params->format, "gif", sizeof(params->format));
    }
    else if (preset <= RECORD_CONFIG_TYPE_STREAMING_HIGH_QUALITY)
    {
       if (!settings->bools.video_gpu_record)
-         params->scale_factor = settings->uints.video_stream_scale_factor > 0 ? 
+         params->scale_factor = settings->uints.video_stream_scale_factor > 0 ?
             settings->uints.video_stream_scale_factor : 1;
       else
          params->scale_factor = 1;
@@ -818,12 +815,12 @@ static bool ffmpeg_init_config(struct ff_config_param *params,
    {
       if (strstr(entry.key, "video_") == entry.key)
       {
-         const char *key = entry.key + strlen("video_");
+         const char *key = entry.key + STRLEN_CONST("video_");
          av_dict_set(&params->video_opts, key, entry.value, 0);
       }
       else if (strstr(entry.key, "audio_") == entry.key)
       {
-         const char *key = entry.key + strlen("audio_");
+         const char *key = entry.key + STRLEN_CONST("audio_");
          av_dict_set(&params->audio_opts, key, entry.value, 0);
       }
    } while (config_get_entry_list_next(&entry));

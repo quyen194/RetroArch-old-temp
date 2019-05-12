@@ -62,7 +62,6 @@ void path_set_redirect(void)
    size_t path_size                            = PATH_MAX_LENGTH * sizeof(char);
    char *new_savefile_dir                      = (char*)malloc(PATH_MAX_LENGTH * sizeof(char));
    char *new_savestate_dir                     = (char*)malloc(PATH_MAX_LENGTH * sizeof(char));
-   bool check_library_name                     = false;
    global_t                *global             = global_get_ptr();
    const char *old_savefile_dir                = dir_get(RARCH_DIR_SAVEFILE);
    const char *old_savestate_dir               = dir_get(RARCH_DIR_SAVESTATE);
@@ -82,63 +81,52 @@ void path_set_redirect(void)
       if (!string_is_equal(system->library_name,
                msg_hash_to_str(MENU_ENUM_LABEL_VALUE_NO_CORE)))
 #endif
-         check_library_name = true;
-   }
-
-   if (check_library_name)
-   {
-      /* per-core saves: append the library_name to the save location */
-      if (settings->bools.sort_savefiles_enable
-            && !string_is_empty(old_savefile_dir))
       {
-         fill_pathname_join(
-               new_savefile_dir,
-               old_savefile_dir,
-               system->library_name,
-               path_size);
-
-         /* If path doesn't exist, try to create it,
-          * if everything fails revert to the original path. */
-         if(!path_is_directory(new_savefile_dir)
-               && !string_is_empty(new_savefile_dir))
+         /* per-core saves: append the library_name to the save location */
+         if (settings->bools.sort_savefiles_enable
+               && !string_is_empty(old_savefile_dir))
          {
-            path_mkdir(new_savefile_dir);
-            if(!path_is_directory(new_savefile_dir))
-            {
-               RARCH_LOG("%s %s\n",
-                     msg_hash_to_str(MSG_REVERTING_SAVEFILE_DIRECTORY_TO),
-                     old_savefile_dir);
+            fill_pathname_join(
+                  new_savefile_dir,
+                  old_savefile_dir,
+                  system->library_name,
+                  path_size);
 
-               strlcpy(new_savefile_dir, old_savefile_dir, path_size);
-            }
+            /* If path doesn't exist, try to create it,
+             * if everything fails revert to the original path. */
+            if (!path_is_directory(new_savefile_dir))
+               if (!path_mkdir(new_savefile_dir))
+               {
+                  RARCH_LOG("%s %s\n",
+                        msg_hash_to_str(MSG_REVERTING_SAVEFILE_DIRECTORY_TO),
+                        old_savefile_dir);
+
+                  strlcpy(new_savefile_dir, old_savefile_dir, path_size);
+               }
          }
-      }
 
-      /* per-core states: append the library_name to the save location */
-      if (settings->bools.sort_savestates_enable
-            && !string_is_empty(old_savestate_dir))
-      {
-         fill_pathname_join(
-               new_savestate_dir,
-               old_savestate_dir,
-               system->library_name,
-               path_size);
-
-         /* If path doesn't exist, try to create it.
-          * If everything fails, revert to the original path. */
-         if(!path_is_directory(new_savestate_dir) &&
-               !string_is_empty(new_savestate_dir))
+         /* per-core states: append the library_name to the save location */
+         if (settings->bools.sort_savestates_enable
+               && !string_is_empty(old_savestate_dir))
          {
-            path_mkdir(new_savestate_dir);
-            if(!path_is_directory(new_savestate_dir))
-            {
-               RARCH_LOG("%s %s\n",
-                     msg_hash_to_str(MSG_REVERTING_SAVESTATE_DIRECTORY_TO),
-                     old_savestate_dir);
-               strlcpy(new_savestate_dir,
-                     old_savestate_dir,
-                     path_size);
-            }
+            fill_pathname_join(
+                  new_savestate_dir,
+                  old_savestate_dir,
+                  system->library_name,
+                  path_size);
+
+            /* If path doesn't exist, try to create it.
+             * If everything fails, revert to the original path. */
+            if (!path_is_directory(new_savestate_dir))
+               if (!path_mkdir(new_savestate_dir))
+               {
+                  RARCH_LOG("%s %s\n",
+                        msg_hash_to_str(MSG_REVERTING_SAVESTATE_DIRECTORY_TO),
+                        old_savestate_dir);
+                  strlcpy(new_savestate_dir,
+                        old_savestate_dir,
+                        path_size);
+               }
          }
       }
    }
@@ -161,11 +149,11 @@ void path_set_redirect(void)
 
    if (global)
    {
-      if(path_is_directory(new_savefile_dir))
+      if (path_is_directory(new_savefile_dir))
          strlcpy(global->name.savefile, new_savefile_dir,
                sizeof(global->name.savefile));
 
-      if(path_is_directory(new_savestate_dir))
+      if (path_is_directory(new_savestate_dir))
          strlcpy(global->name.savestate, new_savestate_dir,
                sizeof(global->name.savestate));
 
@@ -256,9 +244,9 @@ void path_set_special(char **argv, unsigned num_content)
 {
    unsigned i;
    union string_list_elem_attr attr;
-   struct string_list* subsystem_paths = NULL;
+   struct string_list *subsystem_paths = NULL;
    char str[PATH_MAX_LENGTH];
-   global_t   *global   = global_get_ptr();
+   global_t *global = global_get_ptr();
 
    /* First content file is the significant one. */
    path_set_basename(argv[0]);
@@ -283,7 +271,7 @@ void path_set_special(char **argv, unsigned num_content)
     * It is more complicated for special content types. */
    if (global)
    {
-      if(path_is_directory(dir_get(RARCH_DIR_CURRENT_SAVESTATE)))
+      if (path_is_directory(dir_get(RARCH_DIR_CURRENT_SAVESTATE)))
          strlcpy(global->name.savestate, dir_get(RARCH_DIR_CURRENT_SAVESTATE),
                sizeof(global->name.savestate));
       if (path_is_directory(global->name.savestate))
@@ -297,7 +285,9 @@ void path_set_special(char **argv, unsigned num_content)
                global->name.savestate);
       }
    }
-   free(subsystem_paths);
+
+   if (subsystem_paths)
+      string_list_free(subsystem_paths);
 }
 
 static bool path_init_subsystem(void)
@@ -306,8 +296,9 @@ static bool path_init_subsystem(void)
    const struct retro_subsystem_info *info = NULL;
    global_t                        *global = global_get_ptr();
    rarch_system_info_t             *system = runloop_get_system_info();
+   bool subsystem_path_empty               = path_is_empty(RARCH_PATH_SUBSYSTEM);
 
-   if (!system || path_is_empty(RARCH_PATH_SUBSYSTEM))
+   if (!system || subsystem_path_empty)
       return false;
    /* For subsystems, we know exactly which RAM types are supported. */
 
@@ -320,7 +311,7 @@ static bool path_init_subsystem(void)
    if (info)
    {
       unsigned num_content = MIN(info->num_roms,
-            path_is_empty(RARCH_PATH_SUBSYSTEM) ?
+            subsystem_path_empty ?
             0 : (unsigned)subsystem_fullpaths->size);
 
       for (i = 0; i < num_content; i++)
@@ -353,10 +344,8 @@ static bool path_init_subsystem(void)
                      path_size);
             }
             else
-            {
-               fill_pathname(path, savename,
-                     ext, path_size);
-            }
+               fill_pathname(path, savename, ext, path_size);
+
             RARCH_LOG("%s \"%s\".\n",
                msg_hash_to_str(MSG_REDIRECTING_SAVEFILE_TO),
                path);

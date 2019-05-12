@@ -230,8 +230,6 @@ const input_device_driver_t * input_driver_get_sec_joypad_driver(void);
 
 void input_driver_keyboard_mapping_set_block(bool value);
 
-void input_driver_set(const input_driver_t **input, void **input_data);
-
 /**
  * input_sensor_set_state:
  * @port               : User number.
@@ -374,8 +372,6 @@ void input_driver_set_own_driver(void);
 
 void input_driver_unset_own_driver(void);
 
-bool input_driver_owns_driver(void);
-
 void input_driver_deinit_command(void);
 
 bool input_driver_init_command(void);
@@ -492,7 +488,7 @@ static INLINE bool input_joypad_pressed(
       unsigned key)
 {
    /* Auto-binds are per joypad, not per user. */
-   const uint64_t joykey = (binds[key].joykey != NO_BTN)
+   const uint64_t joykey  = (binds[key].joykey != NO_BTN)
       ? binds[key].joykey : joypad_info.auto_binds[key].joykey;
    const uint32_t joyaxis = (binds[key].joyaxis != AXIS_NONE)
       ? binds[key].joyaxis : joypad_info.auto_binds[key].joyaxis;
@@ -555,8 +551,14 @@ bool input_joypad_set_rumble(const input_device_driver_t *driver,
  * Returns: true (1) if axis was pressed, otherwise
  * false (0).
  **/
-int16_t input_joypad_axis_raw(const input_device_driver_t *driver,
-      unsigned port, unsigned axis);
+static INLINE int16_t input_joypad_axis_raw(const input_device_driver_t *drv,
+      unsigned port, unsigned axis)
+{
+   if (!drv)
+      return 0;
+   return drv->axis(port, AXIS_POS(axis)) +
+      drv->axis(port, AXIS_NEG(axis));
+}
 
 /**
  * input_joypad_button_raw:
@@ -570,11 +572,21 @@ int16_t input_joypad_axis_raw(const input_device_driver_t *driver,
  * Returns: true (1) if key was pressed, otherwise
  * false (0).
  **/
-bool input_joypad_button_raw(const input_device_driver_t *driver,
-      unsigned port, unsigned button);
+static INLINE bool input_joypad_button_raw(const input_device_driver_t *drv,
+      unsigned port, unsigned button)
+{
+   if (!drv)
+      return false;
+   return drv && drv->button(port, button);
+}
 
-bool input_joypad_hat_raw(const input_device_driver_t *driver,
-      unsigned joypad, unsigned hat_dir, unsigned hat);
+static INLINE bool input_joypad_hat_raw(const input_device_driver_t *drv,
+      unsigned port, unsigned hat_dir, unsigned hat)
+{
+   if (!drv)
+      return false;
+   return drv->button(port, HAT_MAP(hat, hat_dir));
+}
 
 /**
  * input_pad_connect:
@@ -607,10 +619,13 @@ bool input_mouse_button_raw(unsigned port, unsigned button);
  *
  * Returns: name of joystick #port.
  **/
-const char *input_joypad_name(const input_device_driver_t *driver,
-      unsigned port);
-
-bool input_config_get_bind_idx(unsigned port, unsigned *joy_idx_real);
+static INLINE const char *input_joypad_name(const input_device_driver_t *drv,
+      unsigned port)
+{
+   if (!drv)
+      return NULL;
+   return drv->name(port);
+}
 
 #ifdef HAVE_HID
 
@@ -715,8 +730,6 @@ unsigned input_config_bind_map_get_meta(unsigned i);
 
 const char *input_config_bind_map_get_desc(unsigned i);
 
-bool input_config_bind_map_get_valid(unsigned i);
-
 /* auto_bind can be NULL. */
 void input_config_get_bind_string(char *buf,
       const struct retro_keybind *bind,
@@ -732,8 +745,6 @@ void input_config_get_bind_string(char *buf,
  **/
 enum retro_key input_config_translate_str_to_rk(const char *str);
 
-const char *input_config_get_prefix(unsigned user, bool meta);
-
 /**
  * input_config_translate_str_to_bind_id:
  * @str                            : String to translate to bind ID.
@@ -745,18 +756,9 @@ const char *input_config_get_prefix(unsigned user, bool meta);
  **/
 unsigned input_config_translate_str_to_bind_id(const char *str);
 
-void input_config_parse_key(void *data,
-      const char *prefix, const char *btn,
-      struct retro_keybind *bind);
+void config_read_keybinds_conf(void *data);
 
-void input_config_parse_joy_button(void *data, const char *prefix,
-      const char *btn, struct retro_keybind *bind);
-
-void input_config_parse_joy_axis(void *data, const char *prefix,
-      const char *axis, struct retro_keybind *bind);
-
-void input_config_parse_mouse_button(void *data, const char *prefix,
-      const char *btn, struct retro_keybind *bind);
+void input_autoconfigure_joypad_conf(void *data, struct retro_keybind *binds);
 
 void input_config_set_device_name(unsigned port, const char *name);
 
@@ -764,11 +766,15 @@ void input_config_set_device_display_name(unsigned port, const char *name);
 
 void input_config_set_device_config_name(unsigned port, const char *name);
 
+void input_config_set_device_config_path(unsigned port, const char *path);
+
 void input_config_clear_device_name(unsigned port);
 
 void input_config_clear_device_display_name(unsigned port);
 
 void input_config_clear_device_config_name(unsigned port);
+
+void input_config_clear_device_config_path(unsigned port);
 
 unsigned input_config_get_device_count(void);
 
@@ -784,6 +790,10 @@ const char *input_config_get_device_display_name(unsigned port);
 
 const char *input_config_get_device_config_name(unsigned port);
 
+const char *input_config_get_device_config_path(unsigned port);
+
+const char *input_config_get_device_config_port(unsigned port);
+
 const struct retro_keybind *input_config_get_bind_auto(unsigned port, unsigned id);
 
 void input_config_set_pid(unsigned port, uint16_t pid);
@@ -793,6 +803,12 @@ uint16_t input_config_get_pid(unsigned port);
 void input_config_set_vid(unsigned port, uint16_t vid);
 
 uint16_t input_config_get_vid(unsigned port);
+
+void input_config_save_keybinds_user(void *data, unsigned user);
+
+void input_config_save_keybind(void *data, const char *prefix,
+      const char *base, const struct retro_keybind *bind,
+      bool save_empty);
 
 void input_config_reset(void);
 

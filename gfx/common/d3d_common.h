@@ -57,7 +57,7 @@ struct d3d_matrix
 typedef struct d3d_texture
 {
    void *data;
-   INT32 pool;
+   int32_t pool;
 } d3d_texture_t;
 
 typedef struct
@@ -88,7 +88,7 @@ typedef struct Vertex
 #define D3DPT_COMM_TRIANGLESTRIP         5
 
 /* Clear target surface */
-#define D3D_COMM_CLEAR_TARGET            0x00000001l  
+#define D3D_COMM_CLEAR_TARGET            0x00000001l
 
 void *d3d_matrix_transpose(void *_pout, const void *_pm);
 

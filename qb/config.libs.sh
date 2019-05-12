@@ -9,20 +9,22 @@ add_define MAKEFILE NOUNUSED_VARIABLE "$HAVE_NOUNUSED_VARIABLE"
 
 [ -z "$CROSS_COMPILE" ] && [ -d /opt/local/lib ] && add_dirs LIBRARY /opt/local/lib
 
-[ "$GLOBAL_CONFIG_DIR" ] || \
+[ "${GLOBAL_CONFIG_DIR:-}" ] ||
 {	case "$PREFIX" in
 		/usr*) GLOBAL_CONFIG_DIR=/etc ;;
 		*) GLOBAL_CONFIG_DIR="$PREFIX"/etc ;;
 	esac
 }
 
-DYLIB=-ldl;
+DYLIB=-ldl
 CLIB=-lc
 PTHREADLIB=-lpthread
 SOCKETLIB=-lc
 SOCKETHEADER=
 INCLUDES='usr/include usr/local/include'
 SORT='sort'
+EXTRA_GL_LIBS=''
+VC_PREFIX=''
 
 if [ "$OS" = 'BSD' ]; then
    [ -d /usr/local/include ] && add_dirs INCLUDE /usr/local/include
@@ -117,7 +119,7 @@ else
 fi
 
 [ "$HAVE_DYNAMIC" = 'yes' ] || {
-   check_lib '' RETRO "$LIBRETRO" retro_init "$DYLIB" '' 'Cannot find libretro, did you forget --with-libretro="-lretro"?'
+   check_lib '' RETRO "$LIBRETRO" retro_init "$DYLIB" '' '' 'Cannot find libretro, did you forget --with-libretro="-lretro"?'
    add_define MAKEFILE libretro "$LIBRETRO"
 }
 
@@ -220,7 +222,7 @@ else
 fi
 
 check_pkgconf RSOUND rsound 1.1
-check_pkgconf ROAR libroar
+check_pkgconf ROAR libroar 1.0.12
 check_val '' JACK -ljack '' jack 0.120.1 '' false
 check_val '' PULSE -lpulse '' libpulse '' '' false
 check_val '' SDL -lSDL SDL sdl 1.2.10 '' false
@@ -346,6 +348,11 @@ if [ "$HAVE_OPENGL" != 'no' ] && [ "$HAVE_OPENGLES" != 'yes' ]; then
    fi
 fi
 
+if [ "$HAVE_OPENGL" = 'no' ] && [ "$HAVE_OPENGLES3" = 'no' ]; then
+   die : 'Notice: OpenGL and OpenGLES3 are disabled. Disabling HAVE_OPENGL_CORE.'
+   HAVE_OPENGL_CORE='no'
+fi
+
 if [ "$HAVE_ZLIB" = 'no' ]; then
    HAVE_BUILTINZLIB=no
 elif [ "$HAVE_BUILTINZLIB" = 'yes' ]; then
@@ -398,8 +405,6 @@ if [ "$HAVE_KMS" != "no" ]; then
    fi
 fi
 
-check_val '' LIBXML2 -lxml2 libxml2 libxml-2.0 '' '' false
-
 if [ "$HAVE_EGL" = "yes" ]; then
    if [ "$HAVE_OPENGLES" != "no" ]; then
       if [ "$OPENGLES_LIBS" ] || [ "$OPENGLES_CFLAGS" ]; then
@@ -407,11 +412,7 @@ if [ "$HAVE_EGL" = "yes" ]; then
          add_define MAKEFILE OPENGLES_LIBS "$OPENGLES_LIBS"
          add_define MAKEFILE OPENGLES_CFLAGS "$OPENGLES_CFLAGS"
       else
-         HAVE_OPENGLES=auto; check_pkgconf OPENGLES "$VC_PREFIX"glesv2
-         if [ "$HAVE_OPENGLES" = "no" ]; then
-            HAVE_OPENGLES=auto; check_lib '' OPENGLES "-l${VC_PREFIX}GLESv2 $EXTRA_GL_LIBS"
-            add_define MAKEFILE OPENGLES_LIBS "-l${VC_PREFIX}GLESv2 $EXTRA_GL_LIBS"
-         fi
+         check_val '' OPENGLES "-l${VC_PREFIX}GLESv2 $EXTRA_GL_LIBS" '' "${VC_PREFIX}glesv2" '' '' true
       fi
    fi
    check_val '' VG "-l${VC_PREFIX}OpenVG $EXTRA_GL_LIBS" '' "${VC_PREFIX}vg" '' '' false
@@ -433,11 +434,14 @@ check_pkgconf DBUS dbus-1
 check_val '' XEXT -lXext '' xext '' '' false
 check_val '' XF86VM -lXxf86vm '' xxf86vm '' '' false
 
-if [ "$HAVE_WAYLAND_PROTOS" = yes ] &&
-   [ "$HAVE_WAYLAND_SCANNER" = yes ] &&
+if [ "$HAVE_WAYLAND_SCANNER" = yes ] &&
+   [ "$HAVE_WAYLAND_CURSOR" = yes ] &&
    [ "$HAVE_WAYLAND" = yes ]; then
-    ./gfx/common/wayland/generate_wayland_protos.sh -c "$WAYLAND_SCANNER_VERSION" -s "$SHARE_DIR" ||
-       die 1 'Error: Failed generating wayland protocols.'
+      ./gfx/common/wayland/generate_wayland_protos.sh \
+         -c "$WAYLAND_SCANNER_VERSION" \
+         -p "$HAVE_WAYLAND_PROTOS" \
+         -s "$SHARE_DIR" ||
+         die 1 'Error: Failed generating wayland protocols.'
 else
     die : 'Notice: wayland libraries not found, disabling wayland support.'
     HAVE_WAYLAND='no'
@@ -472,6 +476,7 @@ check_lib '' STRCASESTR "$CLIB" strcasestr
 check_lib '' MMAP "$CLIB" mmap
 
 check_enabled CXX VULKAN vulkan 'The C++ compiler is' false
+check_enabled CXX OPENGL_CORE 'OpenGL core' 'The C++ compiler is' false
 check_enabled THREADS VULKAN vulkan 'Threads are' false
 
 if [ "$HAVE_VULKAN" != "no" ] && [ "$OS" = 'Win32' ]; then
@@ -480,7 +485,7 @@ else
    check_lib '' VULKAN -lvulkan vkCreateInstance
 fi
 
-check_pkgconf PYTHON python3
+check_pkgconf PYTHON 'python3 python3 python-3.7 python-3.6 python-3.5 python-3.4 python-3.3 python-3.2'
 
 if [ "$HAVE_MENU" != 'no' ]; then
    if [ "$HAVE_OPENGL" = 'no' ] && [ "$HAVE_OPENGLES" = 'no' ] && [ "$HAVE_VULKAN" = 'no' ]; then
@@ -496,6 +501,7 @@ if [ "$HAVE_MENU" != 'no' ]; then
          HAVE_OZONE=no
          HAVE_XMB=no
          HAVE_STRIPES=no
+         HAVE_MENU_WIDGETS=no
       fi
       die : 'Notice: Hardware rendering context not available.'
    fi
@@ -508,6 +514,7 @@ add_define MAKEFILE OS "$OS"
 if [ "$HAVE_DEBUG" = 'yes' ]; then
    add_define MAKEFILE DEBUG 1
    if [ "$HAVE_OPENGL" = 'yes' ] ||
+      [ "$HAVE_OPENGL1" = 'yes' ] ||
       [ "$HAVE_OPENGLES" = 'yes' ] ||
       [ "$HAVE_OPENGLES3" = 'yes' ]; then
       add_define MAKEFILE GL_DEBUG 1
@@ -517,5 +524,6 @@ if [ "$HAVE_DEBUG" = 'yes' ]; then
    fi
 fi
 
+check_enabled MENU MENU_WIDGETS 'menu widgets' 'The menu is' false
 check_enabled ZLIB RPNG RPNG 'zlib is' false
 check_enabled V4L2 VIDEOPROCESSOR 'video processor' 'Video4linux2 is' true

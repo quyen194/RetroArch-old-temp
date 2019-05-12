@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2016 - Daniel De Matteis
- *  Copyright (C) 2016 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -85,6 +85,10 @@ enum event_command
    CMD_EVENT_AUDIO_MUTE_TOGGLE,
    /* Toggles FPS counter. */
    CMD_EVENT_FPS_TOGGLE,
+   /* Gathers diagnostic info about the system and RetroArch configuration, then sends it to our servers. */
+   CMD_EVENT_SEND_DEBUG_INFO,
+   /* Toggles netplay hosting. */
+   CMD_EVENT_NETPLAY_HOST_TOGGLE,
    /* Initializes overlay. */
    CMD_EVENT_OVERLAY_INIT,
    /* Deinitializes overlay. */
@@ -188,6 +192,10 @@ enum event_command
    CMD_EVENT_NETPLAY_DEINIT,
    /* Switch between netplay gaming and watching. */
    CMD_EVENT_NETPLAY_GAME_WATCH,
+   /* Start hosting netplay. */
+   CMD_EVENT_NETPLAY_ENABLE_HOST,
+   /* Disconnect from the netplay host. */
+   CMD_EVENT_NETPLAY_DISCONNECT,
    /* Initializes BSV movie. */
    CMD_EVENT_BSV_MOVIE_INIT,
    /* Deinitializes BSV movie. */

@@ -405,9 +405,9 @@ static uint64_t drm_plane_type(drmModePlane *plane)
 {
    int i,j;
 
-   /* The property values and their names are stored in different arrays, 
+   /* The property values and their names are stored in different arrays,
     * so we access them simultaneously here.
-    * We are interested in OVERLAY planes only, that's 
+    * We are interested in OVERLAY planes only, that's
     * type 0 or DRM_PLANE_TYPE_OVERLAY
     * (see /usr/xf86drmMode.h for definition). */
    drmModeObjectPropertiesPtr props =
@@ -793,6 +793,9 @@ static bool drm_gfx_frame(void *data, const void *frame, unsigned width,
    menu_driver_frame(video_info);
 #endif
 
+   video_info->cb_update_window_title(
+         video_info->context_data, video_info);
+
    /* Update main surface: locate free page, blit and flip. */
    drm_surface_update(_drmvars, frame, _drmvars->main_surface);
    return true;
@@ -963,8 +966,6 @@ static void drm_set_aspect_ratio (void *data, unsigned aspect_ratio_idx)
 
 static const video_poke_interface_t drm_poke_interface = {
    NULL, /* get_flags */
-   NULL, /* set_coords */
-   NULL, /* set_mvp    */
    NULL,
    NULL,
    NULL, /* set_video_mode */

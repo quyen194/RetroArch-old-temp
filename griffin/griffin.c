@@ -25,6 +25,8 @@
 #define HAVE_COMPRESSION 1
 #endif
 
+#define JSON_STATIC 1 /* must come before runtime_file, netplay_room_parse and jsonsax_full */
+
 #if _MSC_VER && !defined(__WINRT__)
 #include "../libretro-common/compat/compat_snprintf.c"
 #endif
@@ -137,8 +139,12 @@ CONFIG FILE
 
 #include "../libretro-common/file/config_file.c"
 #include "../libretro-common/file/config_file_userdata.c"
-#include "../managers/core_manager.c"
 #include "../managers/core_option_manager.c"
+
+/*============================================================
+RUNTIME FILE
+============================================================ */
+#include "../runtime_file.c"
 
 /*============================================================
 ACHIEVEMENTS
@@ -151,9 +157,12 @@ ACHIEVEMENTS
 #include "../libretro-common/formats/json/jsonsax.c"
 #include "../network/net_http_special.c"
 
-#ifdef HAVE_NEW_CHEEVOS
+#include "../cheevos/cheevos.c"
+#include "../cheevos/badges.c"
+#include "../cheevos/cond.c"
+#include "../cheevos/var.c"
+
 #include "../cheevos-new/cheevos.c"
-#include "../cheevos-new/badges.c"
 #include "../cheevos-new/fixup.c"
 #include "../cheevos-new/hash.c"
 #include "../cheevos-new/parser.c"
@@ -168,13 +177,9 @@ ACHIEVEMENTS
 #include "../deps/rcheevos/src/rcheevos/term.c"
 #include "../deps/rcheevos/src/rcheevos/trigger.c"
 #include "../deps/rcheevos/src/rcheevos/value.c"
+#include "../deps/rcheevos/src/rcheevos/memref.c"
+#include "../deps/rcheevos/src/rcheevos/richpresence.c"
 #include "../deps/rcheevos/src/rurl/url.c"
-#else
-#include "../cheevos/cheevos.c"
-#include "../cheevos/badges.c"
-#include "../cheevos/cond.c"
-#include "../cheevos/var.c"
-#endif
 
 #endif
 
@@ -203,7 +208,7 @@ VIDEO CONTEXT
 
 #if defined(_WIN32) && !defined(_XBOX) && !defined(__WINRT__)
 
-#if defined(HAVE_OPENGL) || defined(HAVE_VULKAN)
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_VULKAN)
 #include "../gfx/drivers_context/wgl_ctx.c"
 #endif
 
@@ -222,6 +227,7 @@ VIDEO CONTEXT
 #include "../gfx/drivers_context/ps3_ctx.c"
 #elif defined(ANDROID)
 #include "../gfx/drivers_context/android_ctx.c"
+#include "../gfx/display_servers/dispserv_android.c"
 #elif defined(__QNX__)
 #include "../gfx/drivers_context/qnx_ctx.c"
 #elif defined(EMSCRIPTEN)
@@ -289,7 +295,6 @@ VIDEO CONTEXT
 VIDEO SHADERS
 ============================================================ */
 #include "../gfx/video_shader_parse.c"
-#include "../gfx/drivers_shader/shader_null.c"
 
 #ifdef HAVE_CG
 #ifdef HAVE_OPENGL
@@ -410,8 +415,19 @@ VIDEO DRIVER
 
 #include "../gfx/display_servers/dispserv_null.c"
 
+#ifdef HAVE_OPENGL1
+#include "../gfx/drivers/gl1.c"
+#endif
+
+#ifdef HAVE_OPENGL_CORE
+#include "../gfx/drivers/gl_core.c"
+#endif
+
 #ifdef HAVE_OPENGL
 #include "../gfx/drivers/gl.c"
+#endif
+
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL_CORE)
 #include "../libretro-common/gfx/gl_capabilities.c"
 
 #ifndef HAVE_PSGL
@@ -487,8 +503,16 @@ FONTS
 #include "../gfx/drivers_font/ps_libdbgfont.c"
 #endif
 
+#ifdef HAVE_OPENGL1
+#include "../gfx/drivers_font/gl1_raster_font.c"
+#endif
+
 #if defined(HAVE_OPENGL)
 #include "../gfx/drivers_font/gl_raster_font.c"
+#endif
+
+#ifdef HAVE_OPENGL_CORE
+#include "../gfx/drivers_font/gl_core_raster_font.c"
 #endif
 
 #if defined(_XBOX1)
@@ -849,7 +873,6 @@ DRIVERS
 #include "../libretro-common/audio/audio_mixer.c"
 #include "../camera/camera_driver.c"
 #include "../location/location_driver.c"
-#include "../driver.c"
 
 /*============================================================
 SCALERS
@@ -918,7 +941,6 @@ FILE
 #include "../libretro-common/lists/dir_list.c"
 #include "../libretro-common/lists/string_list.c"
 #include "../libretro-common/lists/file_list.c"
-#include "../setting_list.c"
 #include "../libretro-common/file/retro_dirent.c"
 #include "../libretro-common/streams/file_stream.c"
 #include "../libretro-common/streams/file_stream_transforms.c"
@@ -1061,6 +1083,7 @@ RETROARCH
 #include "../intl/msg_hash_cht.c"
 #include "../intl/msg_hash_ar.c"
 #include "../intl/msg_hash_el.c"
+#include "../intl/msg_hash_tr.c"
 #endif
 
 #include "../intl/msg_hash_us.c"
@@ -1117,11 +1140,11 @@ THREAD
 #endif
 
 #include "../libretro-common/rthreads/rthreads.c"
+#include "../libretro-common/rthreads/rsemaphore.c"
 #include "../gfx/video_thread_wrapper.c"
 #include "../audio/audio_thread_wrapper.c"
 #endif
 
-#define JSON_STATIC 1 /* must come before netplay_room_parse and jsonsax_full */
 /* needed for both playlists and netplay lobbies */
 #include "../libretro-common/formats/json/jsonsax_full.c"
 
@@ -1182,6 +1205,8 @@ PLAYLISTS
 /*============================================================
 MENU
 ============================================================ */
+#include "../menu/menu_shader.c"
+
 #ifdef HAVE_MENU
 #include "../menu/menu_driver.c"
 #include "../menu/menu_input.c"
@@ -1192,11 +1217,13 @@ MENU
 
 #include "../menu/menu_networking.c"
 
-#include "../menu/widgets/menu_entry.c"
 #include "../menu/widgets/menu_filebrowser.c"
 #include "../menu/widgets/menu_dialog.c"
 #include "../menu/widgets/menu_input_dialog.c"
 #include "../menu/widgets/menu_input_bind_dialog.c"
+#ifdef HAVE_MENU_WIDGETS
+#include "../menu/widgets/menu_widgets.c"
+#endif
 #include "../menu/widgets/menu_osk.c"
 #include "../menu/cbs/menu_cbs_ok.c"
 #include "../menu/cbs/menu_cbs_cancel.c"
@@ -1215,9 +1242,9 @@ MENU
 #include "../menu/cbs/menu_cbs_up.c"
 #include "../menu/cbs/menu_cbs_down.c"
 #include "../menu/cbs/menu_cbs_contentlist_switch.c"
-#include "../menu/menu_shader.c"
 #include "../menu/menu_displaylist.c"
 #include "../menu/menu_animation.c"
+#include "../menu/menu_thumbnail_path.c"
 
 #include "../menu/drivers/null.c"
 #include "../menu/drivers/menu_generic.c"
@@ -1244,8 +1271,16 @@ MENU
 #include "../menu/drivers_display/menu_display_d3d12.c"
 #endif
 
+#ifdef HAVE_OPENGL1
+#include "../menu/drivers_display/menu_display_gl1.c"
+#endif
+
 #ifdef HAVE_OPENGL
 #include "../menu/drivers_display/menu_display_gl.c"
+#endif
+
+#ifdef HAVE_OPENGL_CORE
+#include "../menu/drivers_display/menu_display_gl_core.c"
 #endif
 
 #ifdef HAVE_VULKAN
@@ -1286,10 +1321,10 @@ MENU
 #include "../menu/drivers/rgui.c"
 #endif
 
-#if defined(HAVE_OPENGL) || defined(HAVE_VITA2D) || defined(_3DS) || defined(_MSC_VER) || defined(__wiiu__) || defined(HAVE_METAL)
 #ifdef HAVE_XMB
 #include "../menu/drivers/xmb.c"
 #endif
+
 #ifdef HAVE_OZONE
 #include "../menu/drivers/ozone/ozone.c"
 #include "../menu/drivers/ozone/ozone_display.c"
@@ -1305,8 +1340,6 @@ MENU
 
 #ifdef HAVE_MATERIALUI
 #include "../menu/drivers/materialui.c"
-#endif
-
 #endif
 
 #ifdef HAVE_NETWORKGAMEPAD
@@ -1382,7 +1415,6 @@ DEPENDENCIES
 #include "../libretro-common/formats/libchdr/libchdr_flac_codec.c"
 #endif
 
-
 #ifdef HAVE_7ZIP
 #include "../libretro-common/formats/libchdr/libchdr_lzma.c"
 #endif
@@ -1413,12 +1445,7 @@ DEPENDENCIES
 /*============================================================
 XML
 ============================================================ */
-#if 0
-#ifndef HAVE_LIBXML2
-#define RXML_LIBXML2_COMPAT 1
 #include "../libretro-common/formats/xml/rxml.c"
-#endif
-#endif
 
 /*============================================================
  AUDIO UTILS

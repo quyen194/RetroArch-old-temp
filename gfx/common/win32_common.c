@@ -80,6 +80,11 @@
 #define DragQueryFileR DragQueryFileW
 #endif
 
+/* For some reason this is missing from mingw winuser.h */
+#ifndef EDS_ROTATEDMODE
+#define EDS_ROTATEDMODE 4
+#endif
+
 const GUID GUID_DEVINTERFACE_HID = { 0x4d1e55b2, 0xf16f, 0x11Cf, { 0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30 } };
 #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x501
 static HDEVNOTIFY notification_handler;
@@ -91,6 +96,12 @@ extern bool dinput_handle_message(void *dinput, UINT message,
 extern void *dinput_gdi;
 extern void *dinput_wgl;
 extern void *dinput;
+#endif
+
+#if defined(HAVE_XINPUT) && !defined(HAVE_DINPUT)
+#ifndef MAX_PADS
+#define MAX_PADS 4
+#endif
 #endif
 
 typedef struct DISPLAYCONFIG_RATIONAL_CUSTOM {
@@ -116,7 +127,7 @@ typedef struct DISPLAYCONFIG_VIDEO_SIGNAL_INFO_CUSTOM {
       UINT32 reserved  :10;
     } AdditionalSignalInfo;
     UINT32 videoStandard;
-  };
+  } dummyunionname;
   UINT32 scanLineOrdering;
 } DISPLAYCONFIG_VIDEO_SIGNAL_INFO_CUSTOM;
 
@@ -132,8 +143,8 @@ typedef struct DISPLAYCONFIG_PATH_SOURCE_INFO_CUSTOM {
     struct {
       UINT32 cloneGroupId  :16;
       UINT32 sourceModeInfoIdx  :16;
-    } DUMMYSTRUCTNAME;
-  } DUMMYUNIONNAME;
+    } dummystructname;
+  } dummyunionname;
   UINT32 statusFlags;
 } DISPLAYCONFIG_PATH_SOURCE_INFO_CUSTOM;
 
@@ -158,7 +169,7 @@ typedef struct DISPLAYCONFIG_MODE_INFO_CUSTOM {
     DISPLAYCONFIG_TARGET_MODE_CUSTOM        targetMode;
     DISPLAYCONFIG_SOURCE_MODE_CUSTOM        sourceMode;
     DISPLAYCONFIG_DESKTOP_IMAGE_INFO_CUSTOM desktopImageInfo;
-  };
+  } dummyunionname;
 } DISPLAYCONFIG_MODE_INFO_CUSTOM;
 
 typedef struct DISPLAYCONFIG_PATH_TARGET_INFO_CUSTOM {
@@ -169,8 +180,8 @@ typedef struct DISPLAYCONFIG_PATH_TARGET_INFO_CUSTOM {
     struct {
       UINT32 desktopModeInfoIdx  :16;
       UINT32 targetModeInfoIdx  :16;
-    };
-  };
+    } dummystructname;
+  } dummyunionname;
   UINT32 outputTechnology;
   UINT32 rotation;
   UINT32 scaling;
@@ -333,7 +344,7 @@ INT_PTR_COMPAT CALLBACK PickCoreProc(HWND hDlg, UINT message,
                         core_info_list_get_supported_cores(core_info_list,
                               path_get(RARCH_PATH_CONTENT), &core_info, &list_size);
                         info = (const core_info_t*)&core_info[lbItem];
-                        rarch_ctl(RARCH_CTL_SET_LIBRETRO_PATH,info->path);
+                        path_set(RARCH_PATH_CORE, info->path);
                      }
                      break;
                }
@@ -596,6 +607,10 @@ static LRESULT win32_handle_keyboard_event(HWND hwnd, UINT message,
                if (input_get_ptr() == &input_dinput && (lparam >> 24 & 0x1))
                   keysym |= 0x80;
             }
+#else
+            {
+               /* fix key binding issues on winraw when DirectInput is not available */
+            }
 #endif
             /* Key released? */
             if (message == WM_KEYUP || message == WM_SYSKEYUP)
@@ -635,9 +650,9 @@ static void win32_set_position_from_config(void)
 
    g_win32_pos_x         = settings->uints.window_position_x;
    g_win32_pos_y         = settings->uints.window_position_y;
-   g_win32_pos_width     = settings->uints.window_position_width 
+   g_win32_pos_width     = settings->uints.window_position_width
       + border_thickness * 2;
-   g_win32_pos_height    = settings->uints.window_position_height 
+   g_win32_pos_height    = settings->uints.window_position_height
       + border_thickness * 2 + title_bar_height;
 }
 
@@ -671,7 +686,7 @@ static void win32_save_position(void)
          settings->uints.window_position_x      = g_win32_pos_x;
          settings->uints.window_position_y      = g_win32_pos_y;
          settings->uints.window_position_width  = g_win32_pos_width - border_thickness * 2;
-         settings->uints.window_position_height = g_win32_pos_height - border_thickness * 2 - title_bar_height - (settings->bools.ui_menubar_enable ? menu_bar_height : 0);
+         settings->uints.window_position_height = g_win32_pos_height - border_thickness * 2 - title_bar_height - ((settings->bools.ui_menubar_enable && !video_driver_is_threaded()) ? menu_bar_height : 0);
       }
    }
 }
@@ -719,7 +734,7 @@ static LRESULT CALLBACK WndProcCommon(bool *quit, HWND hwnd, UINT message,
          break;
       case WM_SIZE:
          /* Do not send resize message if we minimize. */
-         if (  wparam != SIZE_MAXHIDE && 
+         if (  wparam != SIZE_MAXHIDE &&
                wparam != SIZE_MINIMIZED)
          {
             if (LOWORD(lparam) != g_win32_resize_width ||
@@ -810,7 +825,7 @@ LRESULT CALLBACK WndProcD3D(HWND hwnd, UINT message,
 }
 #endif
 
-#if defined(HAVE_OPENGL) || defined(HAVE_VULKAN)
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE) || defined(HAVE_VULKAN)
 LRESULT CALLBACK WndProcGL(HWND hwnd, UINT message,
       WPARAM wparam, LPARAM lparam)
 {
@@ -1044,6 +1059,12 @@ bool win32_get_metrics(void *data,
 
    switch (type)
    {
+      case DISPLAY_METRIC_PIXEL_WIDTH:
+         *value = pixels_x;
+         return true;
+      case DISPLAY_METRIC_PIXEL_HEIGHT:
+         *value = pixels_y;
+         return true;
       case DISPLAY_METRIC_MM_WIDTH:
          *value = physical_width;
          return true;
@@ -1171,14 +1192,14 @@ bool win32_suppress_screensaver(void *data, bool enable)
                POWER_REQUEST_CONTEXT RequestContext;
                HANDLE Request;
 
-               RequestContext.Version                   = 
+               RequestContext.Version                   =
                   POWER_REQUEST_CONTEXT_VERSION;
-               RequestContext.Flags                     = 
+               RequestContext.Flags                     =
                   POWER_REQUEST_CONTEXT_SIMPLE_STRING;
                RequestContext.Reason.SimpleReasonString = (LPWSTR)
                   L"RetroArch running";
 
-               Request                                  = 
+               Request                                  =
                   powerCreateRequest(&RequestContext);
 
                powerSetRequest( Request, PowerRequestDisplayRequired);
@@ -1568,10 +1589,15 @@ bool win32_get_video_output(DEVMODE *dm, int mode, size_t len)
 {
    memset(dm, 0, len);
    dm->dmSize  = len;
-
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0500 /* 2K */
+   if (EnumDisplaySettingsEx(NULL,
+            (mode == -1) ? ENUM_CURRENT_SETTINGS : mode, dm, EDS_ROTATEDMODE) == 0)
+      return false;
+#else
    if (EnumDisplaySettings(NULL,
             (mode == -1) ? ENUM_CURRENT_SETTINGS : mode, dm) == 0)
       return false;
+#endif
 
    return true;
 }

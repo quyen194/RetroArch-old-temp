@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -114,7 +114,7 @@ static bool input_autoconfigured[MAX_USERS];
 static unsigned input_device_name_index[MAX_INPUT_DEVICES];
 static bool input_autoconfigure_swap_override;
 
-/* TODO/FIXME - Not thread safe to access this 
+/* TODO/FIXME - Not thread safe to access this
  * on main thread as well in its current state -
  * menu_input.c - menu_event calls this function
  * right now, while the underlying variable can
@@ -126,7 +126,7 @@ bool input_autoconfigure_get_swap_override(void)
 
 /* Adds an index for devices with the same name,
  * so they can be identified in the GUI. */
-void input_autoconfigure_joypad_reindex_devices()
+void input_autoconfigure_joypad_reindex_devices(void)
 {
    unsigned i, j, k;
 
@@ -149,7 +149,7 @@ void input_autoconfigure_joypad_reindex_devices()
             continue;
 
          /*another device with the same name found, for the first time*/
-         if(string_is_equal(tmp, other) &&
+         if (string_is_equal(tmp, other) &&
                input_device_name_index[j]==0 )
          {
             /*Mark the first device of the set*/
@@ -159,20 +159,6 @@ void input_autoconfigure_joypad_reindex_devices()
             input_device_name_index[j] = k++;
          }
       }
-   }
-}
-
-static void input_autoconfigure_joypad_conf(config_file_t *conf,
-      struct retro_keybind *binds)
-{
-   unsigned i;
-
-   for (i = 0; i < RARCH_BIND_LIST_END; i++)
-   {
-      input_config_parse_joy_button(conf, "input",
-            input_config_bind_map_get_base(i), &binds[i]);
-      input_config_parse_joy_axis(conf, "input",
-            input_config_bind_map_get_base(i), &binds[i]);
    }
 }
 
@@ -217,12 +203,12 @@ static int input_autoconfigure_joypad_try_from_conf(config_file_t *conf,
 #if 0
    else
    {
-      if(string_is_empty(params->name))
-         RARCH_LOG("[autoconf]: failed match because params->name was empty\n");
-      else if(string_is_empty(ident))
-         RARCH_LOG("[autoconf]: failed match because ident was empty\n");
+      if (string_is_empty(params->name))
+         RARCH_LOG("[Autoconf]: failed match because params->name was empty\n");
+      else if (string_is_empty(ident))
+         RARCH_LOG("[Autoconf]: failed match because ident was empty\n");
       else
-         RARCH_LOG("[autoconf]: failed match because ident '%s' != param->name '%s'\n",
+         RARCH_LOG("[Autoconf]: failed match because ident '%s' != param->name '%s'\n",
                ident, params->name);
    }
 #endif
@@ -237,8 +223,12 @@ static void input_autoconfigure_joypad_add(config_file_t *conf,
    /* This will be the case if input driver is reinitialized.
     * No reason to spam autoconfigure messages every time. */
    bool block_osd_spam                =
+#if defined(HAVE_LIBNX) && defined(HAVE_MENU_WIDGETS)
+      true;
+#else
       input_autoconfigured[params->idx]
       && !string_is_empty(params->name);
+#endif
 
    msg[0] = display_name[0] = device_type[0] = '\0';
 
@@ -260,7 +250,7 @@ static void input_autoconfigure_joypad_add(config_file_t *conf,
             (string_is_empty(display_name) &&
              !string_is_empty(params->name)) ? params->name : (!string_is_empty(display_name) ? display_name : "N/A"));
 
-      if(!remote_is_bound)
+      if (!remote_is_bound)
       {
          task_free_title(task);
          task_set_title(task, strdup(msg));
@@ -278,7 +268,7 @@ static void input_autoconfigure_joypad_add(config_file_t *conf,
             ? params->name : (!string_is_empty(display_name) ? display_name : "N/A"),
             msg_hash_to_str(MSG_DEVICE_CONFIGURED_IN_PORT),
             params->idx);
-   
+
       /* allow overriding the swap menu controls for player 1*/
       if (params->idx == 0)
       {
@@ -299,9 +289,15 @@ static void input_autoconfigure_joypad_add(config_file_t *conf,
    else
       input_config_set_device_display_name(params->idx, params->name);
    if (!string_is_empty(conf->path))
+   {
       input_config_set_device_config_name(params->idx, path_basename(conf->path));
+      input_config_set_device_config_path(params->idx, conf->path);
+   }
    else
+   {
       input_config_set_device_config_name(params->idx, "N/A");
+      input_config_set_device_config_path(params->idx, "N/A");
+   }
 
    input_autoconfigure_joypad_reindex_devices();
 }
@@ -350,16 +346,13 @@ static bool input_autoconfigure_joypad_from_conf_dir(
                DIR_LIST_AUTOCONFIG, "cfg");
    }
 
-   if(!list)
+   if (!list)
    {
-      RARCH_LOG("[autoconf]: No profiles found.\n");
+      RARCH_LOG("[Autoconf]: No profiles found.\n");
       return false;
    }
 
-   if (list)
-   {
-      RARCH_LOG("[Autoconf]: %d profiles found.\n", list->size);
-   }
+   RARCH_LOG("[Autoconf]: %d profiles found.\n", (int)list->size);
 
    for (i = 0; i < list->size; i++)
    {
@@ -368,7 +361,7 @@ static bool input_autoconfigure_joypad_from_conf_dir(
       if (conf)
          ret  = input_autoconfigure_joypad_try_from_conf(conf, params);
 
-      if(ret >= current_best)
+      if (ret >= current_best)
       {
          index        = (int)i;
          current_best = ret;
@@ -376,7 +369,7 @@ static bool input_autoconfigure_joypad_from_conf_dir(
       config_file_free(conf);
    }
 
-   if(index >= 0 && current_best > 0)
+   if (index >= 0 && current_best > 0)
    {
       conf = config_file_new(list->elems[index].data);
 
@@ -388,7 +381,7 @@ static bool input_autoconfigure_joypad_from_conf_dir(
 
          config_get_config_path(conf, conf_path, sizeof(conf_path));
 
-         RARCH_LOG("[autoconf]: selected configuration: %s\n", conf_path);
+         RARCH_LOG("[Autoconf]: selected configuration: %s\n", conf_path);
          input_autoconfigure_joypad_add(conf, params, task);
          config_file_free(conf);
          ret = 1;
@@ -491,7 +484,8 @@ static const blissbox_pad_type_t* input_autoconfigure_get_blissbox_pad_type_win3
 
    if (hDeviceInfo == INVALID_HANDLE_VALUE)
    {
-      RARCH_ERR("[Autoconf]: Error in SetupDiGetClassDevs: %d.\n", GetLastError());
+      RARCH_ERR("[Autoconf]: Error in SetupDiGetClassDevs: %d.\n",
+            GetLastError());
       goto done;
    }
 
@@ -651,7 +645,7 @@ found:
       if (hDeviceHandle == INVALID_HANDLE_VALUE)
       {
          RARCH_ERR("[Autoconf]: Can't open device for reading and writing: %d.", GetLastError());
-         runloop_msg_queue_push("Bliss-Box already in use. Please make sure other programs are not using it.", 2, 300, false);
+         runloop_msg_queue_push("Bliss-Box already in use. Please make sure other programs are not using it.", 2, 300, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
          goto done;
       }
    }
@@ -806,7 +800,7 @@ static void input_autoconfigure_override_handler(autoconfig_params_t *params)
       {
          const blissbox_pad_type_t *pad;
          char name[255] = {0};
-         int index = params->pid - BLISSBOX_PID;
+         int index      = params->pid - BLISSBOX_PID;
 
          RARCH_LOG("[Autoconf]: Bliss-Box detected. Getting pad type...\n");
 
@@ -858,7 +852,7 @@ static void input_autoconfigure_connect_handler(retro_task_t *task)
          free(params->name);
       params->name = strdup("Android Gamepad");
 
-      if(input_autoconfigure_joypad_from_conf_internal(params, task))
+      if (input_autoconfigure_joypad_from_conf_internal(params, task))
       {
          RARCH_LOG("[Autoconf]: no profiles found for %s (%d/%d). Using fallback\n",
                !string_is_empty(params->name) ? params->name : "N/A",
@@ -910,7 +904,7 @@ static void input_autoconfigure_disconnect_handler(retro_task_t *task)
 bool input_autoconfigure_disconnect(unsigned i, const char *ident)
 {
    char msg[255];
-   retro_task_t         *task      = (retro_task_t*)calloc(1, sizeof(*task));
+   retro_task_t         *task      = task_init();
    autoconfig_disconnect_t *state  = (autoconfig_disconnect_t*)calloc(1, sizeof(*state));
 
    if (!state || !task)
@@ -929,6 +923,7 @@ bool input_autoconfigure_disconnect(unsigned i, const char *ident)
    input_config_clear_device_name(state->idx);
    input_config_clear_device_display_name(state->idx);
    input_config_clear_device_config_name(state->idx);
+   input_config_clear_device_config_path(state->idx);
 
    task->state   = state;
    task->handler = input_autoconfigure_disconnect_handler;
@@ -987,7 +982,7 @@ bool input_autoconfigure_connect(
       unsigned pid)
 {
    unsigned i;
-   retro_task_t         *task = (retro_task_t*)calloc(1, sizeof(*task));
+   retro_task_t         *task = task_init();
    autoconfig_params_t *state = (autoconfig_params_t*)calloc(1, sizeof(*state));
    settings_t       *settings = config_get_ptr();
    const char *dir_autoconf   = settings ? settings->paths.directory_autoconfig : NULL;

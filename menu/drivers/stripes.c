@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2011-2017 - Daniel De Matteis
  *  Copyright (C) 2014-2017 - Jean-André Santoni
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *  Copyright (C) 2018 - Alfredo Monclús
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
@@ -49,7 +49,6 @@
 #include "../../core_info.h"
 #include "../../core.h"
 
-#include "../widgets/menu_entry.h"
 #include "../widgets/menu_input_dialog.h"
 #include "../widgets/menu_osk.h"
 #include "../widgets/menu_filebrowser.h"
@@ -69,7 +68,7 @@
 #define STRIPES_RIBBON_VERTICES 2*STRIPES_RIBBON_COLS*STRIPES_RIBBON_ROWS-2*STRIPES_RIBBON_COLS
 
 #ifndef STRIPES_DELAY
-#define STRIPES_DELAY 10
+#define STRIPES_DELAY 166
 #endif
 
 #define BATTERY_LEVEL_CHECK_INTERVAL (30 * 1000000)
@@ -248,8 +247,6 @@ typedef struct stripes_handle
    float categories_active_zoom;
    float categories_active_alpha;
    float categories_active_width;
-
-   uint64_t frame_count;
 
    char title_name[255];
    char *box_message;
@@ -881,7 +878,7 @@ static void stripes_update_thumbnail_path(void *data, unsigned i, char pos)
       stripes_node_t *node = (stripes_node_t*)
          file_list_get_userdata_at_offset(selection_buf, i);
 
-      if (!string_is_empty(node->fullpath) && 
+      if (!string_is_empty(node->fullpath) &&
          (pos == 'R' || (pos == 'L' && string_is_equal(stripes_thumbnails_ident('R'),
             msg_hash_to_str(MENU_ENUM_LABEL_VALUE_OFF)))))
       {
@@ -905,11 +902,10 @@ static void stripes_update_thumbnail_path(void *data, unsigned i, char pos)
 
    if (playlist)
    {
-      const char    *core_name       = NULL;
-      playlist_get_index(playlist, i,
-            NULL, NULL, NULL, &core_name, NULL, NULL);
+      const struct playlist_entry *entry  = NULL;
+      playlist_get_index(playlist, i, &entry);
 
-      if (string_is_equal(core_name, "imageviewer"))
+      if (string_is_equal(entry->core_name, "imageviewer"))
       {
          if (pos == 'R' || (pos == 'L' && string_is_equal(stripes_thumbnails_ident('R'),
             msg_hash_to_str(MENU_ENUM_LABEL_VALUE_OFF))))
@@ -1700,7 +1696,7 @@ static void stripes_list_switch(stripes_handle_t *stripes)
    stripes_list_switch_horizontal_list(stripes);
 
    anim_entry.duration     = STRIPES_DELAY;
-   anim_entry.target_value = stripes->categories_passive_width 
+   anim_entry.target_value = stripes->categories_passive_width
       * -(float)stripes->categories_selection_ptr;
    anim_entry.subject      = &stripes->categories_x_pos;
    anim_entry.easing_enum  = EASING_OUT_QUAD;
@@ -1879,7 +1875,7 @@ static void stripes_context_reset_horizontal_list(
    size_t list_size                =
       stripes_list_get_size(stripes, MENU_LIST_HORIZONTAL);
 
-   stripes->categories_x_pos           = 
+   stripes->categories_x_pos           =
       stripes->categories_passive_width *
       -(float)stripes->categories_selection_ptr;
 
@@ -2292,7 +2288,7 @@ static void stripes_calculate_visible_range(const stripes_handle_t *stripes,
    {
       for (j = current; j-- > 0; )
       {
-         float bottom = stripes_item_y(stripes, j, current) 
+         float bottom = stripes_item_y(stripes, j, current)
             + base_y + stripes->icon_size;
 
          if (bottom < 0)
@@ -2323,7 +2319,6 @@ static int stripes_draw_item(
       float *color,
       const char *thumb_ident,
       const char *left_thumb_ident,
-      uint64_t frame_count,
       size_t i,
       size_t current,
       unsigned width,
@@ -2342,6 +2337,10 @@ static int stripes_draw_item(
    stripes_node_t *   node               = (stripes_node_t*)
       file_list_get_userdata_at_offset(list, i);
    settings_t *settings              = config_get_ptr();
+
+   /* Initial ticker configuration */
+   ticker.type_enum = settings->uints.menu_ticker_type;
+   ticker.spacer = NULL;
 
    if (!node)
       goto iterate;
@@ -2450,7 +2449,7 @@ static int stripes_draw_item(
 
    ticker.s        = tmp;
    ticker.len      = ticker_limit;
-   ticker.idx      = frame_count / 20;
+   ticker.idx      = menu_animation_get_ticker_idx();
    ticker.str      = ticker_str;
    ticker.selected = (i == current);
 
@@ -2465,7 +2464,7 @@ static int stripes_draw_item(
 
       label_offset      = - stripes->margins_label_top;
 
-      word_wrap(entry_sublabel, entry->sublabel, 50 * stripes_scale_mod[3], true);
+      word_wrap(entry_sublabel, entry->sublabel, 50 * stripes_scale_mod[3], true, 0);
 
       stripes_draw_text(video_info, stripes, entry_sublabel,
             node->x + stripes->margins_screen_left +
@@ -2486,7 +2485,7 @@ static int stripes_draw_item(
 
    ticker.s        = tmp;
    ticker.len      = 35 * stripes_scale_mod[7];
-   ticker.idx      = frame_count / 20;
+   ticker.idx      = menu_animation_get_ticker_idx();
    ticker.selected = (i == current);
 
    if (!string_is_empty(entry->value))
@@ -2587,7 +2586,6 @@ static void stripes_draw_items(
    menu_display_ctx_rotate_draw_t rotate_draw;
    stripes_node_t *core_node       = NULL;
    size_t end                  = 0;
-   uint64_t frame_count        = stripes ? stripes->frame_count : 0;
    const char *thumb_ident     = stripes_thumbnails_ident('R');
    const char *left_thumb_ident= stripes_thumbnails_ident('L');
 
@@ -2640,7 +2638,6 @@ static void stripes_draw_items(
             &mymat,
             stripes, core_node,
             list, color, thumb_ident, left_thumb_ident,
-            frame_count,
             i, current,
             width, height);
       menu_entry_free(&entry);
@@ -2654,7 +2651,6 @@ static void stripes_draw_items(
 static void stripes_render(void *data, bool is_idle)
 {
    size_t i;
-   menu_animation_ctx_delta_t delta;
    settings_t   *settings   = config_get_ptr();
    stripes_handle_t *stripes        = (stripes_handle_t*)data;
    unsigned      end        = (unsigned)menu_entries_get_size();
@@ -2663,11 +2659,6 @@ static void stripes_render(void *data, bool is_idle)
 
    if (!stripes)
       return;
-
-   delta.current = menu_animation_get_delta_time();
-
-   if (menu_animation_get_ideal_delta_time(&delta))
-      menu_animation_update(delta.ideal);
 
    if (pointer_enable || mouse_enable)
    {
@@ -2827,9 +2818,7 @@ static void stripes_frame(void *data, video_frame_info_t *video_info)
       return;
 
    scale_factor                            = (settings->uints.menu_xmb_scale_factor * (float)width) / (1920.0 * 100);
-   pseudo_font_length                      = stripes->icon_spacing_horizontal * 4 - stripes->icon_size / 4; 
-
-   stripes->frame_count++;
+   pseudo_font_length                      = stripes->icon_spacing_horizontal * 4 - stripes->icon_size / 4;
 
    msg[0]             = '\0';
    title_msg[0]       = '\0';
@@ -2960,7 +2949,7 @@ static void stripes_frame(void *data, video_frame_info_t *video_info)
 //             stripes->selection_buf_old,
 //             stripes->selection_ptr_old,
 //             (stripes_list_get_size(stripes, MENU_LIST_PLAIN) > 1)
-//             ? stripes->categories_selection_ptr : 
+//             ? stripes->categories_selection_ptr :
 //             stripes->categories_selection_ptr_old,
 //             &stripes_item_color[0],
 //             width,
@@ -3123,7 +3112,7 @@ static void stripes_layout_psp(stripes_handle_t *stripes, int width)
    float scale_factor            =
       ((settings->uints.menu_xmb_scale_factor * width) / (1920.0 * 100)) * 1.5;
 #ifdef _3DS
-   scale_factor                  = 
+   scale_factor                  =
       settings->uints.menu_xmb_scale_factor / 400.0;
 #endif
 
@@ -3621,7 +3610,7 @@ static void stripes_context_reset_textures(
    unsigned i;
 
    for (i = 0; i < STRIPES_TEXTURE_LAST; i++)
-      menu_display_reset_textures_list(stripes_texture_path(i), iconpath, &stripes->textures.list[i], TEXTURE_FILTER_MIPMAP_LINEAR);
+      menu_display_reset_textures_list(stripes_texture_path(i), iconpath, &stripes->textures.list[i], TEXTURE_FILTER_MIPMAP_LINEAR, NULL, NULL);
 
    menu_display_allocate_white_texture();
 
@@ -3841,7 +3830,6 @@ static void stripes_list_deep_copy(const file_list_t *src, file_list_t *dst,
 
    menu_animation_kill_by_tag(&tag);
 
-   /* use true here because file_list_copy() doesn't free actiondata */
    stripes_free_list_nodes(dst, true);
 
    file_list_clear(dst);
@@ -4457,5 +4445,8 @@ menu_ctx_driver_t menu_ctx_stripes = {
    stripes_set_thumbnail_content,
    stripes_osk_ptr_at_pos,
    stripes_update_savestate_thumbnail_path,
-   stripes_update_savestate_thumbnail_image
+   stripes_update_savestate_thumbnail_image,
+   NULL,                                     /* pointer_down */
+   NULL,                                     /* pointer_up   */
+   NULL                                      /* get_load_content_animation_data   */
 };

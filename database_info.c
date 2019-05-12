@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -380,7 +380,7 @@ database_info_handle_t *database_info_dir_init(const char *dir,
 
    core_info_get_list(&core_info_list);
 
-   list = dir_list_new(dir, core_info_list->all_ext,
+   list = dir_list_new(dir, core_info_list ? core_info_list->all_ext : NULL,
          false, show_hidden_files,
          false, true);
 

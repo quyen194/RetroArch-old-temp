@@ -33,7 +33,7 @@
 #include "../../../retroarch.h"
 
 #ifdef HAVE_MENU
-#include "../../../menu/widgets/menu_entry.h"
+#include "../../../menu/menu_entries.h"
 #include "../../../menu/menu_driver.h"
 #include "../../../menu/drivers/menu_generic.h"
 #endif
@@ -650,12 +650,10 @@ didSelectRowAtIndexPath:(NSIndexPath *)indexPath
     [message show];
 }
 
-
 -(void)msgQueuePush:(NSString *)msg
 {
    self.osdmessage.text = msg;
 }
-
 
 - (void)alertView:(UIAlertView*)alertView clickedButtonAtIndex:(NSInteger)buttonIndex
 {

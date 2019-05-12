@@ -16,7 +16,7 @@ MSG_HASH(
     "Aumentar ou diminuir o brilho da tela do Switch"
     )
 #endif
-#if defined(HAVE_LAKKA_SWITCH) || defined(HAVE_LIBNX) 
+#if defined(HAVE_LAKKA_SWITCH) || defined(HAVE_LIBNX)
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_SWITCH_CPU_PROFILE,
     "Overclock da CPU"
@@ -590,10 +590,6 @@ MSG_HASH(
     "Salvar Configuração ao Sair"
     )
 MSG_HASH(
-    MENU_ENUM_LABEL_VALUE_CONTENT_COLLECTION_LIST,
-    "Coleções"
-    )
-MSG_HASH(
     MENU_ENUM_LABEL_VALUE_CONTENT_DATABASE_DIRECTORY,
     "Base de Dados"
     )
@@ -1052,10 +1048,6 @@ MSG_HASH(
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_INPUT_AUTODETECT_ENABLE,
     "Habilitar Auto Configuração"
-    )
-MSG_HASH(
-    MENU_ENUM_LABEL_VALUE_INPUT_AXIS_THRESHOLD,
-    "Zona Morta do Controle Analógico"
     )
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_MENU_INPUT_SWAP_OK_CANCEL,
@@ -1547,6 +1539,10 @@ MSG_HASH(
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_LANG_GREEK,
     "Grego"
+    )
+MSG_HASH(
+    MENU_ENUM_LABEL_VALUE_LANG_TURKISH,
+    "Turco"
     )
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_LEFT_ANALOG,
@@ -2743,10 +2739,6 @@ MSG_HASH(
     "Suporte a Libusb"
     )
 MSG_HASH(
-    MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_LIBXML2_SUPPORT,
-    "Suporte a libxml2 XML parsing"
-    )
-MSG_HASH(
     MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_NETPLAY_SUPPORT,
     "Suporte de jogo em rede (ponto-a-ponto)"
     )
@@ -3266,10 +3258,12 @@ MSG_HASH(
     MENU_ENUM_LABEL_VALUE_VIDEO_DISABLE_COMPOSITION,
     "Desativar Composição da Área de Trabalho"
     )
+#if defined(_3DS)
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_VIDEO_3DS_LCD_BOTTOM,
     "Tela Inferior 3DS"
     )
+#endif
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_VIDEO_DRIVER,
     "Driver de Vídeo"
@@ -4764,10 +4758,6 @@ MSG_HASH(
     "Sincroniza o áudio. Recomendado."
     )
 MSG_HASH(
-    MENU_ENUM_SUBLABEL_INPUT_AXIS_THRESHOLD,
-    "Até que ponto um eixo deve ser movido para resultar em um botão pressionado."
-    )
-MSG_HASH(
     MENU_ENUM_SUBLABEL_INPUT_BIND_TIMEOUT,
     "Quantidade de segundos para aguardar até proceder para o próximo vínculo."
     )
@@ -4961,8 +4951,8 @@ MSG_HASH(
     "Selecionar Arquivo"
     )
 MSG_HASH(
-    MENU_ENUM_LABEL_VALUE_SELECT_FROM_COLLECTION,
-    "Selecionar de Coleção"
+    MENU_ENUM_LABEL_VALUE_SELECT_FROM_PLAYLIST,
+    "Selecionar da Lista de Reprodução"
     )
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_FILTER,
@@ -5129,7 +5119,7 @@ MSG_HASH(
     "Selecione a porta para a transparência escutar se Exibir Comandos na Transparência estiver habilitado."
     )
 MSG_HASH(
-    MENU_ENUM_SUBLABEL_CONTENT_COLLECTION_LIST,
+    MENU_ENUM_SUBLABEL_PLAYLISTS_TAB,
     "O conteúdo analisado aparecerá aqui."
     )
 MSG_HASH(
@@ -5540,11 +5530,11 @@ MSG_HASH(
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_SCAN_DIRECTORY,
-    "Analisa um diretório por arquivos compatíveis e os adiciona à coleção."
+    "Analisa um diretório por arquivos compatíveis."
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_SCAN_FILE,
-    "Analisa um arquivo compatível e o adiciona à coleção."
+    "Analisa um arquivo compatível."
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_VIDEO_SWAP_INTERVAL,
@@ -5580,7 +5570,7 @@ MSG_HASH(
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_DELETE_ENTRY,
-    "Remove esta entrada da coleção."
+    "Remove esta entrada da lista de reprodução."
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_INFORMATION,
@@ -5724,7 +5714,7 @@ MSG_HASH(
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_PLAYLIST_ENTRY_REMOVE,
-    "Permite que o usuário possa remover itens das coleções."
+    "Permite que o usuário possa remover itens das listas de reprodução."
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_SYSTEM_DIRECTORY,
@@ -5893,7 +5883,7 @@ MSG_HASH(
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_PLAYLIST_DIRECTORY,
-    "Salva todas as coleções neste diretório."
+    "Salva todas as listas de reprodução neste diretório."
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_CACHE_DIRECTORY,
@@ -6217,7 +6207,7 @@ MSG_HASH(
     )
 MSG_HASH(
     MENU_ENUM_SUBLABEL_PLAYLIST_ENTRY_RENAME,
-    "Permite que o usuário renomeie os itens nas coleções."
+    "Permite que o usuário renomeie os itens nas listas de reprodução."
     )
 MSG_HASH(
     MENU_ENUM_LABEL_VALUE_PLAYLIST_ENTRY_RENAME,
@@ -7785,7 +7775,7 @@ MSG_HASH(
     )
 MSG_HASH(
    MENU_ENUM_LABEL_VALUE_QT_MENU_VIEW_OPTIONS_THUMBNAIL_TYPE,
-   "Tipo de visualização de miniatura de ícones:"
+   "Miniatura"
    )
 MSG_HASH(
    MENU_ENUM_LABEL_VALUE_QT_MENU_VIEW_OPTIONS_THUMBNAIL_CACHE_LIMIT,
@@ -8044,3 +8034,11 @@ MSG_HASH(
     MENU_ENUM_LABEL_VALUE_SYSTEM_INFO_COREAUDIO3_SUPPORT,
     "CoreAudio V3 support"
     )
+MSG_HASH(MENU_ENUM_LABEL_VALUE_MENU_WIDGETS_ENABLE,
+      "Menu Widgets")
+MSG_HASH(MENU_ENUM_LABEL_VALUE_VIDEO_SHADERS_ENABLE,
+      "Video Shaders")
+MSG_HASH(MENU_ENUM_LABEL_VALUE_SCAN_WITHOUT_CORE_MATCH,
+      "Scan without core match")
+MSG_HASH(MENU_ENUM_SUBLABEL_SCAN_WITHOUT_CORE_MATCH,
+      "When disabled, content is only added to playlists if you have a core installed that supports its extension. By enabling this, it will add to playlist regardless. This way, you can install the core you need later on after scanning.")

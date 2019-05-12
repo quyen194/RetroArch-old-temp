@@ -977,7 +977,7 @@ static void *gl_glsl_init(void *data, const char *path)
 
          snprintf(define, sizeof(define), "#define %s_ALIAS\n",
                glsl->shader->pass[i].alias);
-         strlcat(glsl->alias_define, define, sizeof(glsl->alias_define));
+         string_concat(glsl->alias_define, define);
       }
    }
 
@@ -1410,12 +1410,10 @@ static void gl_glsl_set_params(void *dat, void *shader_data)
    }
 }
 
-static bool gl_glsl_set_mvp(void *data, void *shader_data, const void *mat_data)
+static bool gl_glsl_set_mvp(void *shader_data, const void *mat_data)
 {
    int loc;
    glsl_shader_data_t *glsl   = (glsl_shader_data_t*)shader_data;
-
-   (void)data;
 
    if (!glsl || !glsl->shader->modern)
       return false;
@@ -1448,7 +1446,7 @@ static bool gl_glsl_set_mvp(void *data, void *shader_data, const void *mat_data)
       buffer[y + size]  = coord2[y]; \
    size                += multiplier * coords->vertices; \
 
-static bool gl_glsl_set_coords(void *handle_data, void *shader_data,
+static bool gl_glsl_set_coords(void *shader_data,
       const struct video_coords *coords)
 {
    GLfloat short_buffer[4 * (2 + 2 + 4 + 2)];
@@ -1641,6 +1639,11 @@ void gl_glsl_set_context_type(bool core_profile,
    glsl_minor = minor;
 }
 
+static void gl_glsl_get_flags(uint32_t *flags)
+{
+   BIT32_SET(*flags, GFX_CTX_FLAGS_SHADERS_GLSL);
+}
+
 const shader_backend_t gl_glsl_backend = {
    gl_glsl_init,
    gl_glsl_init_menu_shaders,
@@ -1659,6 +1662,7 @@ const shader_backend_t gl_glsl_backend = {
    gl_glsl_get_feedback_pass,
    gl_glsl_mipmap_input,
    gl_glsl_get_current_shader,
+   gl_glsl_get_flags,
 
    RARCH_SHADER_GLSL,
    "glsl"

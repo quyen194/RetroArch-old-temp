@@ -1,6 +1,6 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2019 - Hans-Kristian Arntzen
- * 
+ *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
  *  ation, either version 3 of the License, or (at your option) any later version.
@@ -21,6 +21,14 @@
 #include <stdint.h>
 #include <spirv_cross.hpp>
 
+struct slang_semantic_location
+{
+   int ubo_vertex = -1;
+   int push_vertex = -1;
+   int ubo_fragment = -1;
+   int push_fragment = -1;
+};
+
 struct slang_texture_semantic_meta
 {
    size_t ubo_offset = 0;
@@ -31,6 +39,10 @@ struct slang_texture_semantic_meta
    bool texture = false;
    bool uniform = false;
    bool push_constant = false;
+
+   // For APIs which need location information ala legacy GL.
+   // API user fills this struct in.
+   slang_semantic_location location;
 };
 
 struct slang_semantic_meta
@@ -40,6 +52,9 @@ struct slang_semantic_meta
    unsigned num_components = 0;
    bool uniform = false;
    bool push_constant = false;
+
+   // For APIs which need location information ala legacy GL.
+   slang_semantic_location location;
 };
 
 struct slang_texture_semantic_map

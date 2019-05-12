@@ -260,9 +260,12 @@ static void frontend_ps3_get_environment_settings(int *argc, char *argv[],
       fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_CHEATS],
             g_defaults.dirs[DEFAULT_DIR_CORE], "cheats",
             sizeof(g_defaults.dirs[DEFAULT_DIR_CHEATS]));
-      fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_AUTOCONFIG], 
+      fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_AUTOCONFIG],
             g_defaults.dirs[DEFAULT_DIR_CORE],
             "autoconfig", sizeof(g_defaults.dirs[DEFAULT_DIR_AUTOCONFIG]));
+      fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_LOGS],
+            g_defaults.dirs[DEFAULT_DIR_CORE],
+            "logs", sizeof(g_defaults.dirs[DEFAULT_DIR_LOGS]));
    }
 
 #ifndef IS_SALAMANDER
@@ -599,7 +602,7 @@ static void frontend_ps3_process_args(int *argc, char *argv[])
       char path[PATH_MAX_LENGTH] = {0};
       strlcpy(path, argv[0], sizeof(path));
       if (filestream_exists(path))
-         rarch_ctl(RARCH_CTL_SET_LIBRETRO_PATH, path);
+         path_set(RARCH_PATH_CORE, path);
    }
 #endif
 }
@@ -635,5 +638,7 @@ frontend_ctx_driver_t frontend_ctx_ps3 = {
    NULL,                         /* watch_path_for_changes */
    NULL,                         /* check_for_path_changes */
    NULL,                         /* set_sustained_performance_mode */
+   NULL,                         /* get_cpu_model_name */
+   NULL,                         /* get_user_language */
    "ps3",
 };

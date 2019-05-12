@@ -94,7 +94,8 @@ Qt::ItemFlags PlaylistModel::flags(const QModelIndex &index) const
 
 bool PlaylistModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-   if (index.isValid() && role == Qt::EditRole) {
+   if (index.isValid() && role == Qt::EditRole)
+   {
       QHash<QString, QString> hash = m_contents.at(index.row());
 
       hash["label"] = value.toString();
@@ -114,8 +115,7 @@ QVariant PlaylistModel::headerData(int section, Qt::Orientation orientation, int
 
    if (orientation == Qt::Horizontal)
       return msg_hash_to_str(MENU_ENUM_LABEL_VALUE_QT_NAME);
-   else
-      return section + 1;
+   return section + 1;
 }
 
 void PlaylistModel::setThumbnailType(const ThumbnailType type)
@@ -151,9 +151,7 @@ bool PlaylistModel::isSupportedImage(const QString path) const
       extensionStr = path.mid(lastIndex + 1);
 
       if (!extensionStr.isEmpty())
-      {
          extension = extensionStr.toLower().toUtf8();
-      }
    }
 
    if (!extension.isEmpty() && m_imageFormats.contains(extension))
@@ -168,36 +166,38 @@ QString PlaylistModel::getSanitizedThumbnailName(QString label) const
 }
 
 QString PlaylistModel::getThumbnailPath(const QHash<QString, QString> &hash, QString type) const
-{   
+{
    if (isSupportedImage(hash["path"]))
    {
       /* use thumbnail widgets to show regular image files */
       return hash["path"];
    }
-   else
-   {
-      return getPlaylistThumbnailsDir(hash.value("db_name")) + "/" + type + "/" + getSanitizedThumbnailName(hash["label_noext"]);
-   }
+
+   return getPlaylistThumbnailsDir(hash.value("db_name")) 
+      + "/" + type + "/" + getSanitizedThumbnailName(hash["label_noext"]);
 }
 
 QString PlaylistModel::getCurrentTypeThumbnailPath(const QModelIndex &index) const
 {
    switch (m_thumbnailType)
    {
-   case THUMBNAIL_TYPE_BOXART:
-      return getThumbnailPath(index, THUMBNAIL_BOXART);
-   case THUMBNAIL_TYPE_SCREENSHOT:
-      return getThumbnailPath(index, THUMBNAIL_SCREENSHOT);
-   case THUMBNAIL_TYPE_TITLE_SCREEN:
-      return getThumbnailPath(index, THUMBNAIL_TITLE);
-   default:
-      return QString();
+      case THUMBNAIL_TYPE_BOXART:
+         return getThumbnailPath(index, THUMBNAIL_BOXART);
+      case THUMBNAIL_TYPE_SCREENSHOT:
+         return getThumbnailPath(index, THUMBNAIL_SCREENSHOT);
+      case THUMBNAIL_TYPE_TITLE_SCREEN:
+         return getThumbnailPath(index, THUMBNAIL_TITLE);
+      default:
+         break;
    }
+
+   return QString();
 }
 
 void PlaylistModel::reloadThumbnail(const QModelIndex &index)
 {
-   if (index.isValid()) {
+   if (index.isValid())
+   {
       reloadThumbnailPath(getCurrentTypeThumbnailPath(index));
       loadThumbnail(index);
    }
@@ -265,11 +265,6 @@ inline static bool comp_hash_name_key_lower(const QHash<QString, QString> &lhs, 
    return lhs.value("name").toLower() < rhs.value("name").toLower();
 }
 
-inline static bool comp_hash_label_key_lower(const QHash<QString, QString> &lhs, const QHash<QString, QString> &rhs)
-{
-   return lhs.value("label").toLower() < rhs.value("label").toLower();
-}
-
 bool MainWindow::addDirectoryFilesToList(QProgressDialog *dialog, QStringList &list, QDir &dir, QStringList &extensions)
 {
    PlaylistEntryDialog *playlistDialog = playlistEntryDialog();
@@ -286,16 +281,16 @@ bool MainWindow::addDirectoryFilesToList(QProgressDialog *dialog, QStringList &l
       if (dialog->wasCanceled())
          return false;
 
+      /* Needed to update progress dialog while doing 
+       * a lot of stuff on the main thread. */
       if (i % 25 == 0)
-      {
-         /* Needed to update progress dialog while doing a lot of stuff on the main thread. */
          qApp->processEvents();
-      }
 
       if (fileInfo.isDir())
       {
          QDir fileInfoDir(path);
-         bool success = addDirectoryFilesToList(dialog, list, fileInfoDir, extensions);
+         bool success = addDirectoryFilesToList(
+               dialog, list, fileInfoDir, extensions);
 
          if (!success)
             return false;
@@ -454,11 +449,10 @@ void MainWindow::addFilesToPlaylist(QStringList files)
       if (dialog->wasCanceled())
          return;
 
+      /* Needed to update progress dialog while 
+       * doing a lot of stuff on the main thread. */
       if (i % 25 == 0)
-      {
-         /* Needed to update progress dialog while doing a lot of stuff on the main thread. */
          qApp->processEvents();
-      }
 
       if (fileInfo.isDir())
       {
@@ -522,9 +516,11 @@ void MainWindow::addFilesToPlaylist(QStringList files)
       const char *coreNameData = NULL;
       const char *databaseData = NULL;
 
+      /* Cancel out of everything, the 
+       * current progress will not be written 
+       * to the playlist at all. */
       if (dialog->wasCanceled())
       {
-         /* Cancel out of everything, the current progress will not be written to the playlist at all. */
          playlist_free(playlist);
          return;
       }
@@ -601,8 +597,19 @@ void MainWindow::addFilesToPlaylist(QStringList files)
          }
       }
 
-      playlist_push(playlist, pathData, fileNameNoExten,
-            corePathData, coreNameData, "00000000|crc", databaseData);
+      {
+         struct playlist_entry entry = {0};
+
+         /* the push function reads our entry as const, so these casts are safe */
+         entry.path = const_cast<char*>(pathData);
+         entry.label = const_cast<char*>(fileNameNoExten);
+         entry.core_path = const_cast<char*>(corePathData);
+         entry.core_name = const_cast<char*>(coreNameData);
+         entry.crc32 = const_cast<char*>("00000000|crc");
+         entry.db_name = const_cast<char*>(databaseData);
+
+         playlist_push(playlist, &entry);
+      }
    }
 
    playlist_write_file(playlist);
@@ -703,8 +710,20 @@ bool MainWindow::updateCurrentPlaylistEntry(const QHash<QString, QString> &conte
 
    playlist = playlist_init(playlistPathData, COLLECTION_SIZE);
 
-   playlist_update(playlist, index, pathData, labelData,
-         corePathData, coreNameData, crc32Data, dbNameData);
+   {
+      struct playlist_entry entry = {0};
+
+      /* the update function reads our entry as const, so these casts are safe */
+      entry.path = const_cast<char*>(pathData);
+      entry.label = const_cast<char*>(labelData);
+      entry.core_path = const_cast<char*>(corePathData);
+      entry.core_name = const_cast<char*>(coreNameData);
+      entry.crc32 = const_cast<char*>(crc32Data);
+      entry.db_name = const_cast<char*>(dbNameData);
+
+      playlist_update(playlist, index, &entry);
+   }
+
    playlist_write_file(playlist);
    playlist_free(playlist);
 
@@ -1184,9 +1203,7 @@ void MainWindow::reloadPlaylists()
          if (!foundCurrent)
          {
             if (foundInitial && initialItem)
-            {
                m_listWidget->setCurrentItem(initialItem);
-            }
             else
             {
                /* the previous playlist must be gone now, just select the first one */
@@ -1200,8 +1217,8 @@ void MainWindow::reloadPlaylists()
 
 QString MainWindow::getCurrentPlaylistPath()
 {
-   QListWidgetItem *playlistItem = m_listWidget->currentItem();
    QString playlistPath;
+   QListWidgetItem *playlistItem = m_listWidget->currentItem();
 
    if (!playlistItem)
       return playlistPath;
@@ -1213,23 +1230,24 @@ QString MainWindow::getCurrentPlaylistPath()
 
 bool MainWindow::currentPlaylistIsSpecial()
 {
-   settings_t *settings = config_get_ptr();
-   QDir playlistDir(settings->paths.directory_playlist);
-   QString playlistDirAbsPath = playlistDir.absolutePath();
    QFileInfo currentPlaylistFileInfo;
    QString currentPlaylistPath;
    QString currentPlaylistDirPath;
+   bool specialPlaylist                 = false;
+   settings_t *settings                 = config_get_ptr();
+   QDir playlistDir(settings->paths.directory_playlist);
+   QString playlistDirAbsPath           = playlistDir.absolutePath();
    QListWidgetItem *currentPlaylistItem = m_listWidget->currentItem();
-   bool specialPlaylist = false;
 
    if (!currentPlaylistItem)
       return false;
 
-   currentPlaylistPath = currentPlaylistItem->data(Qt::UserRole).toString();
+   currentPlaylistPath     = currentPlaylistItem->data(Qt::UserRole).toString();
    currentPlaylistFileInfo = QFileInfo(currentPlaylistPath);
-   currentPlaylistDirPath = currentPlaylistFileInfo.absoluteDir().absolutePath();
+   currentPlaylistDirPath  = currentPlaylistFileInfo.absoluteDir().absolutePath();
 
-   /* Don't just compare strings in case there are case differences on Windows that should be ignored. */
+   /* Don't just compare strings in case there are 
+    * case differences on Windows that should be ignored. */
    if (QDir(currentPlaylistDirPath) != QDir(playlistDirAbsPath))
       specialPlaylist = true;
 
@@ -1244,7 +1262,8 @@ bool MainWindow::currentPlaylistIsAll()
    if (!currentPlaylistItem)
       return false;
 
-   if (currentPlaylistItem->data(Qt::UserRole).toString() == ALL_PLAYLISTS_TOKEN)
+   if (currentPlaylistItem->data(Qt::UserRole).toString() 
+         == ALL_PLAYLISTS_TOKEN)
       all = true;
 
    return all;
@@ -1292,10 +1311,12 @@ void MainWindow::deleteCurrentPlaylistItem()
 
 QVector<QHash<QString, QString> > MainWindow::getPlaylistDefaultCores()
 {
-   settings_t *settings = config_get_ptr();
-   struct string_list *playlists = string_split(settings->arrays.playlist_names, ";");
-   struct string_list *cores = string_split(settings->arrays.playlist_cores, ";");
    unsigned i = 0;
+   settings_t          *settings = config_get_ptr();
+   struct string_list *playlists = string_split(
+         settings->arrays.playlist_names, ";");
+   struct string_list     *cores = string_split(
+         settings->arrays.playlist_cores, ";");
    QVector<QHash<QString, QString> > coreList;
 
    if (!playlists || !cores)
@@ -1358,48 +1379,41 @@ void PlaylistModel::getPlaylistItems(QString path)
 
    for (i = 0; i < playlistSize; i++)
    {
-      const char *path = NULL;
-      const char *label = NULL;
-      const char *core_path = NULL;
-      const char *core_name = NULL;
-      const char *crc32 = NULL;
-      const char *db_name = NULL;
+      const struct playlist_entry *entry  = NULL;
       QHash<QString, QString> hash;
 
-      playlist_get_index(playlist, i,
-                         &path, &label, &core_path,
-                         &core_name, &crc32, &db_name);
+      playlist_get_index(playlist, i, &entry);
 
-      if (string_is_empty(path))
+      if (string_is_empty(entry->path))
          continue;
       else
-         hash["path"] = path;
+         hash["path"] = entry->path;
 
       hash["index"] = QString::number(i);
 
-      if (string_is_empty(label))
+      if (string_is_empty(entry->label))
       {
-         hash["label"] = path;
-         hash["label_noext"] = path;
+         hash["label"] = entry->path;
+         hash["label_noext"] = entry->path;
       }
       else
       {
-         hash["label"] = label;
-         hash["label_noext"] = label;
+         hash["label"] = entry->label;
+         hash["label_noext"] = entry->label;
       }
 
-      if (!string_is_empty(core_path))
-         hash["core_path"] = core_path;
+      if (!string_is_empty(entry->core_path))
+         hash["core_path"] = entry->core_path;
 
-      if (!string_is_empty(core_name))
-         hash["core_name"] = core_name;
+      if (!string_is_empty(entry->core_name))
+         hash["core_name"] = entry->core_name;
 
-      if (!string_is_empty(crc32))
-         hash["crc32"] = crc32;
+      if (!string_is_empty(entry->crc32))
+         hash["crc32"] = entry->crc32;
 
-      if (!string_is_empty(db_name))
+      if (!string_is_empty(entry->db_name))
       {
-         hash["db_name"] = db_name;
+         hash["db_name"] = entry->db_name;
          hash["db_name"].remove(file_path_str(FILE_PATH_LPL_EXTENSION));
       }
 
@@ -1422,9 +1436,7 @@ void PlaylistModel::addPlaylistItems(const QStringList &paths, bool add)
    m_contents.clear();
 
    for (i = 0; i < paths.size(); i++)
-   {
       getPlaylistItems(paths.at(i));
-   }
 
    endResetModel();
 }
@@ -1455,10 +1467,10 @@ void PlaylistModel::addDir(QString path, QFlags<QDir::Filter> showHidden)
       QString filePath(QDir::toNativeSeparators(dir.absoluteFilePath(fileName)));
       QFileInfo fileInfo(filePath);
 
-      hash["path"] = filePath;
-      hash["label"] = hash["path"];
+      hash["path"]        = filePath;
+      hash["label"]       = hash["path"];
       hash["label_noext"] = fileInfo.completeBaseName();
-      hash["db_name"] = fileInfo.dir().dirName();
+      hash["db_name"]     = fileInfo.dir().dirName();
 
       m_contents.append(hash);
    }

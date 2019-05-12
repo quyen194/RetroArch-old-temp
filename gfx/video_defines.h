@@ -83,6 +83,8 @@ enum font_driver_render_api
 {
    FONT_DRIVER_RENDER_DONT_CARE,
    FONT_DRIVER_RENDER_OPENGL_API,
+   FONT_DRIVER_RENDER_OPENGL_CORE_API,
+   FONT_DRIVER_RENDER_OPENGL1_API,
    FONT_DRIVER_RENDER_D3D8_API,
    FONT_DRIVER_RENDER_D3D9_API,
    FONT_DRIVER_RENDER_D3D10_API,
@@ -144,6 +146,11 @@ typedef struct video_viewport
    unsigned full_width;
    unsigned full_height;
 } video_viewport_t;
+
+typedef struct gfx_ctx_flags
+{
+   uint32_t flags;
+} gfx_ctx_flags_t;
 
 RETRO_END_DECLS
 

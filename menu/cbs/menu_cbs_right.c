@@ -284,7 +284,7 @@ static int action_right_cheat_delete_all(unsigned type, const char *label,
             msg_hash_to_str(MSG_CHEAT_DELETE_ALL_SUCCESS), sizeof(msg));
       msg[sizeof(msg) - 1] = 0;
 
-      runloop_msg_queue_push(msg, 1, 180, true);
+      runloop_msg_queue_push(msg, 1, 180, true, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
    }
 
    return 0;
@@ -362,7 +362,7 @@ static int action_right_shader_num_passes(unsigned type, const char *label,
       return menu_cbs_exit();
 
    if (pass_count < GFX_MAX_SHADERS)
-      menu_shader_manager_increment_amount_passes();
+      shader->passes++;
 
    menu_entries_ctl(MENU_ENTRIES_CTL_SET_REFRESH, &refresh);
    menu_driver_ctl(RARCH_MENU_CTL_SET_PREVENT_POPULATE, NULL);

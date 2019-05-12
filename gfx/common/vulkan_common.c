@@ -1,4 +1,4 @@
-﻿/*  RetroArch - A frontend for libretro.
+/*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2016-2017 - Hans-Kristian Arntzen
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
@@ -618,7 +618,7 @@ struct vk_texture vulkan_create_texture(vk_t *vk,
       RARCH_LOG("[Vulkan]: GPU supports linear images as textures, but not DEVICE_LOCAL. Falling back to copy path.\n");
       type = VULKAN_TEXTURE_STAGING;
       vkDestroyImage(device, tex.image, NULL);
-      tex.image          = NULL;
+      tex.image          = (VkImage)NULL;
       info.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
       buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -1580,7 +1580,7 @@ static bool vulkan_find_device_extensions(VkPhysicalDevice gpu,
       goto end;
    }
 
-   memcpy(enabled, exts, num_exts * sizeof(*exts));
+   memcpy((void*)enabled, exts, num_exts * sizeof(*exts));
    *enabled_count = num_exts;
 
    for (i = 0; i < num_optional_exts; i++)
@@ -1737,6 +1737,44 @@ static bool vulkan_context_init_device(gfx_ctx_vulkan_data_t *vk)
 #endif
 
    RARCH_LOG("[Vulkan]: Using GPU: %s\n", vk->context.gpu_properties.deviceName);
+
+   {
+      char device_str[128];
+      char driver_version[64];
+      char api_version[64];
+      char version_str[128];
+      int pos = 0;
+
+      device_str[0] = driver_version[0] = api_version[0] = version_str[0] = '\0';
+
+      strlcpy(device_str, vk->context.gpu_properties.deviceName, sizeof(device_str));
+      strlcat(device_str, " ", sizeof(device_str));
+
+      pos += snprintf(driver_version + pos, sizeof(driver_version) - pos, "%u", VK_VERSION_MAJOR(vk->context.gpu_properties.driverVersion));
+      strlcat(driver_version, ".", sizeof(driver_version));
+      pos++;
+      pos += snprintf(driver_version + pos, sizeof(driver_version) - pos, "%u", VK_VERSION_MINOR(vk->context.gpu_properties.driverVersion));
+      pos++;
+      strlcat(driver_version, ".", sizeof(driver_version));
+      pos += snprintf(driver_version + pos, sizeof(driver_version) - pos, "%u", VK_VERSION_PATCH(vk->context.gpu_properties.driverVersion));
+
+      strlcat(device_str, driver_version, sizeof(device_str));
+
+      pos = 0;
+
+      pos += snprintf(api_version + pos, sizeof(api_version) - pos, "%u", VK_VERSION_MAJOR(vk->context.gpu_properties.apiVersion));
+      strlcat(api_version, ".", sizeof(api_version));
+      pos++;
+      pos += snprintf(api_version + pos, sizeof(api_version) - pos, "%u", VK_VERSION_MINOR(vk->context.gpu_properties.apiVersion));
+      pos++;
+      strlcat(api_version, ".", sizeof(api_version));
+      pos += snprintf(api_version + pos, sizeof(api_version) - pos, "%u", VK_VERSION_PATCH(vk->context.gpu_properties.apiVersion));
+
+      strlcat(version_str, api_version, sizeof(device_str));
+
+      video_driver_set_gpu_device_string(device_str);
+      video_driver_set_gpu_api_version_string(version_str);
+   }
 
    if (vk->context.device == VK_NULL_HANDLE)
    {
@@ -2030,9 +2068,9 @@ bool vulkan_context_init(gfx_ctx_vulkan_data_t *vk,
       res = vkCreateInstance(&info, NULL, &vk->context.instance);
    }
 
-   if (res == VK_ERROR_INCOMPATIBLE_DRIVER)
+   if (res != VK_SUCCESS)
    {
-      RARCH_ERR("Failed to create Vulkan instance.\n");
+      RARCH_ERR("Failed to create Vulkan instance (%d).\n", res);
       return false;
    }
 
@@ -2446,7 +2484,7 @@ bool vulkan_surface_create(gfx_ctx_vulkan_data_t *vk,
             surf_info.pNext = NULL;
             surf_info.flags = 0;
             surf_info.pView = surface;
-            
+
             if (create(vk->context.instance, &surf_info, NULL, &vk->vk_surface)
                 != VK_SUCCESS)
                return false;
@@ -2467,7 +2505,7 @@ bool vulkan_surface_create(gfx_ctx_vulkan_data_t *vk,
             surf_info.pNext = NULL;
             surf_info.flags = 0;
             surf_info.pView = surface;
-            
+
             if (create(vk->context.instance, &surf_info, NULL, &vk->vk_surface)
                 != VK_SUCCESS)
                return false;

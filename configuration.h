@@ -137,11 +137,13 @@ typedef struct settings
 
       /* Menu */
       bool filter_by_current_core;
+      bool menu_enable_widgets;
       bool menu_show_start_screen;
       bool menu_pause_libretro;
       bool menu_timedate_enable;
       bool menu_battery_level_enable;
       bool menu_core_enable;
+      bool menu_show_sublabels;
       bool menu_dynamic_wallpaper_enable;
       bool menu_throttle;
       bool menu_mouse_enable;
@@ -170,6 +172,11 @@ typedef struct settings
       bool menu_rgui_background_filler_thickness_enable;
       bool menu_rgui_border_filler_thickness_enable;
       bool menu_rgui_border_filler_enable;
+      bool menu_rgui_full_width_layout;
+      bool menu_rgui_shadows;
+      bool menu_rgui_inline_thumbnails;
+      bool menu_rgui_swap_thumbnails;
+      bool menu_rgui_extended_ascii;
       bool menu_xmb_shadows_enable;
       bool menu_xmb_vertical_thumbnails;
       bool menu_content_show_settings;
@@ -234,6 +241,7 @@ typedef struct settings
       bool cheevos_badges_enable;
       bool cheevos_verbose_enable;
       bool cheevos_auto_screenshot;
+      bool cheevos_old_enable; /* RCHEEVOS TODO: remove line */
 
       /* Camera */
       bool camera_allow;
@@ -305,6 +313,23 @@ typedef struct settings
 
       bool sustained_performance_mode;
       bool playlist_use_old_format;
+      bool content_runtime_log;
+      bool content_runtime_log_aggregate;
+
+      bool playlist_sort_alphabetical;
+      bool playlist_show_sublabels;
+      bool playlist_fuzzy_archive_match;
+
+      bool quit_press_twice;
+      bool vibrate_on_keypress;
+      bool enable_device_vibration;
+      bool ozone_collapse_sidebar;
+
+
+      bool log_to_file;
+      bool log_to_file_timestamp;
+
+      bool scan_without_core_match;
    } bools;
 
    struct
@@ -326,6 +351,7 @@ typedef struct settings
       float menu_framebuffer_opacity;
       float menu_footer_opacity;
       float menu_header_opacity;
+      float menu_ticker_speed;
 
       float audio_max_timing_skew;
       float audio_volume; /* dB scale. */
@@ -336,6 +362,8 @@ typedef struct settings
 
       float slowmotion_ratio;
       float fastforward_ratio;
+      float input_analog_deadzone;
+      float input_analog_sensitivity;
    } floats;
 
    struct
@@ -355,6 +383,8 @@ typedef struct settings
       unsigned audio_out_rate;
       unsigned audio_block_frames;
       unsigned audio_latency;
+
+      unsigned input_block_timeout;
 
       unsigned audio_resampler_quality;
 
@@ -395,6 +425,7 @@ typedef struct settings
       unsigned video_viwidth;
       unsigned video_aspect_ratio_idx;
       unsigned video_rotation;
+      unsigned screen_orientation;
       unsigned video_msg_bgcolor_red;
       unsigned video_msg_bgcolor_green;
       unsigned video_msg_bgcolor_blue;
@@ -403,11 +434,13 @@ typedef struct settings
       unsigned video_stream_quality;
       unsigned video_record_scale_factor;
       unsigned video_stream_scale_factor;
+      unsigned video_3ds_display_mode;
 
       unsigned menu_timedate_style;
       unsigned menu_thumbnails;
       unsigned menu_left_thumbnails;
       unsigned menu_rgui_thumbnail_downscaler;
+      unsigned menu_rgui_thumbnail_delay;
       unsigned menu_dpi_override_value;
       unsigned menu_rgui_color_theme;
       unsigned menu_xmb_layout;
@@ -421,6 +454,14 @@ typedef struct settings
       unsigned menu_font_color_red;
       unsigned menu_font_color_green;
       unsigned menu_font_color_blue;
+      unsigned menu_rgui_internal_upscale_level;
+      unsigned menu_rgui_aspect_ratio;
+      unsigned menu_rgui_aspect_ratio_lock;
+      unsigned menu_rgui_particle_effect;
+      unsigned menu_ticker_type;
+
+      unsigned playlist_show_inline_core_name;
+      unsigned playlist_sublabel_runtime_type;
 
       unsigned camera_width;
       unsigned camera_height;
@@ -557,6 +598,7 @@ typedef struct settings
       char directory_system[PATH_MAX_LENGTH];
       char directory_cache[PATH_MAX_LENGTH];
       char directory_playlist[PATH_MAX_LENGTH];
+      char directory_runtime_log[PATH_MAX_LENGTH];
       char directory_core_assets[PATH_MAX_LENGTH];
       char directory_assets[PATH_MAX_LENGTH];
       char directory_dynamic_wallpapers[PATH_MAX_LENGTH];
@@ -564,6 +606,8 @@ typedef struct settings
       char directory_menu_config[PATH_MAX_LENGTH];
       char directory_menu_content[PATH_MAX_LENGTH];
       char streaming_title[PATH_MAX_LENGTH];
+
+      char log_dir[PATH_MAX_LENGTH];
    } paths;
 
    bool modified;

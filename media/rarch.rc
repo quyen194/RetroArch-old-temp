@@ -68,13 +68,12 @@ IDR_MENU MENU
             MENUITEM "9x", ID_M_WINDOW_SCALE_9X
             MENUITEM "10x", ID_M_WINDOW_SCALE_10X
         }
+        MENUITEM "Toggle Desktop Menu", ID_M_TOGGLE_DESKTOP
         MENUITEM "Toggle Exclusive Full Screen", ID_M_FULL_SCREEN
         // Shader dialog is disabled for now, until video_threaded issues are fixed.
         //MENUITEM "Shader Parameters", ID_M_SHADER_PARAMETERS
     }
 }
-
-
 
 //
 // Dialog resources
@@ -91,15 +90,11 @@ FONT 8, "Ms Shell Dlg"
     LTEXT           "Please select a core to use for the content loaded.\nOtherwise, press 'Cancel' to cancel loading.", 0, 9, 12, 160, 17, SS_LEFT, WS_EX_LEFT
 }
 
-
-
 //
 // Icon resources
 //
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 1                  ICON           "retroarch.ico"
-
-
 
 //
 // Manifest resources

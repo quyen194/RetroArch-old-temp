@@ -1,6 +1,6 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2017 - Hans-Kristian Arntzen
- * 
+ *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
  *  ation, either version 3 of the License, or (at your option) any later version.
@@ -46,14 +46,25 @@ bool glslang_read_shader_file(const char *path, vector<string> *output, bool roo
    char                          *buf = nullptr;
    int64_t                        len = 0;
    const char *basename               = path_basename(path);
+   size_t path_size                   = PATH_MAX_LENGTH * sizeof(char);
+   char *tmp_path                     = (char*)malloc(path_size);
 
    include_path[0] = tmp[0] = '\0';
 
-   if (!filestream_read_file(path, (void**)&buf, &len))
+   strlcpy(tmp_path, path, path_size);
+   path_resolve_realpath(tmp_path, path_size);
+
+   if (!path_is_valid(tmp_path))
+      strlcpy(tmp_path, path, path_size);
+
+   if (!filestream_read_file(tmp_path, (void**)&buf, &len))
    {
-      RARCH_ERR("Failed to open shader file: \"%s\".\n", path);
+      RARCH_ERR("Failed to open shader file: \"%s\".\n", tmp_path);
+      free(tmp_path);
       return false;
    }
+
+   free(tmp_path);
 
    /* Remove Windows \r chars if we encounter them.
     * filestream_read_file() allocates one extra for 0 terminator. */
@@ -102,7 +113,7 @@ bool glslang_read_shader_file(const char *path, vector<string> *output, bool roo
       output->push_back("#extension GL_GOOGLE_cpp_style_line_directive : require");
    }
 
-   /* At least VIM treats the first line as line #1, 
+   /* At least VIM treats the first line as line #1,
     * so offset everything by one. */
    snprintf(tmp, sizeof(tmp), "#line %u \"%s\"", root_file ? 2 : 1, basename);
    output->push_back(tmp);
@@ -138,7 +149,7 @@ bool glslang_read_shader_file(const char *path, vector<string> *output, bool roo
          if (!glslang_read_shader_file(include_path, output, false))
             goto error;
 
-         /* After including a file, use line directive 
+         /* After including a file, use line directive
           * to pull it back to current file. */
          snprintf(tmp, sizeof(tmp), "#line %u \"%s\"", unsigned(i + 1), basename);
          output->push_back(tmp);
@@ -147,7 +158,7 @@ bool glslang_read_shader_file(const char *path, vector<string> *output, bool roo
       {
          /* #line seems to be ignored if preprocessor tests fail,
           * so we should reapply #line after each #endif.
-          * Add extra offset here since we're setting #line 
+          * Add extra offset here since we're setting #line
           * for the line after this one.
           */
          snprintf(tmp, sizeof(tmp), "#line %u \"%s\"", unsigned(i + 2), basename);
@@ -305,7 +316,7 @@ bool glslang_parse_meta(const vector<string> &lines, glslang_meta *meta)
             return false;
          }
 
-         str = line_c + strlen("#pragma name ");
+         str = line_c + STRLEN_CONST("#pragma name ");
 
          while (*str == ' ')
             str++;
@@ -329,7 +340,7 @@ bool glslang_parse_meta(const vector<string> &lines, glslang_meta *meta)
                      return param.id == id;
                   });
 
-            /* Allow duplicate #pragma parameter, but only 
+            /* Allow duplicate #pragma parameter, but only
              * if they are exactly the same. */
             if (itr != end(meta->parameters))
             {
@@ -363,7 +374,7 @@ bool glslang_parse_meta(const vector<string> &lines, glslang_meta *meta)
             return false;
          }
 
-         str = line_c + strlen("#pragma format ");
+         str = line_c + STRLEN_CONST("#pragma format ");
 
          while (*str == ' ')
             str++;

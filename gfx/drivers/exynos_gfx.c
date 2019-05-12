@@ -1325,7 +1325,7 @@ static bool exynos_gfx_frame(void *data, const void *frame, unsigned width,
    }
    else if (video_info->statistics_show)
    {
-      struct font_params *osd_params = video_info ? 
+      struct font_params *osd_params = video_info ?
          (struct font_params*)&video_info->osd_stat_params : NULL;
 
       if (osd_params)
@@ -1489,8 +1489,6 @@ static void exynos_show_mouse(void *data, bool state)
 
 static const video_poke_interface_t exynos_poke_interface = {
    NULL, /* get_flags */
-   NULL, /* set_coords */
-   NULL, /* set_mvp */
    NULL,
    NULL,
    NULL, /* set_video_mode */

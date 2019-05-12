@@ -14,11 +14,14 @@
  */
 
 #define CINTERFACE
+#define COBJMACROS
 
 #include <assert.h>
 
 #include <string/stdstring.h>
 #include <file/file_path.h>
+#include <encodings/utf.h>
+#include <dxgi.h>
 
 #include "../../driver.h"
 #include "../../verbosity.h"
@@ -34,6 +37,9 @@
 #include "../common/d3dcompiler_common.h"
 #ifdef HAVE_MENU
 #include "../../menu/menu_driver.h"
+#ifdef HAVE_MENU_WIDGETS
+#include "../../menu/widgets/menu_widgets.h"
+#endif
 #endif
 
 #ifdef __WINRT__
@@ -59,7 +65,7 @@ d3d10_overlay_vertex_geom(void* data, unsigned index, float x, float y, float w,
    if (!d3d10)
       return;
 
-   D3D10MapBuffer(d3d10->overlays.vbo, 
+   D3D10MapBuffer(d3d10->overlays.vbo,
          D3D10_MAP_WRITE_NO_OVERWRITE, 0, (void**)&sprites);
    sprites[index].pos.x    = x;
    sprites[index].pos.y    = y;
@@ -70,11 +76,11 @@ d3d10_overlay_vertex_geom(void* data, unsigned index, float x, float y, float w,
 
 static void d3d10_clear_scissor(d3d10_video_t *d3d10, video_frame_info_t *video_info)
 {
-   D3D10_RECT scissor_rect = {0};
+   D3D10_RECT scissor_rect;
 
-   scissor_rect.left = 0;
-   scissor_rect.top = 0;
-   scissor_rect.right = video_info->width;
+   scissor_rect.left   = 0;
+   scissor_rect.top    = 0;
+   scissor_rect.right  = video_info->width;
    scissor_rect.bottom = video_info->height;
 
    D3D10SetScissorRects(d3d10->device, 1, &scissor_rect);
@@ -89,7 +95,7 @@ static void d3d10_overlay_tex_geom(void* data, unsigned index, float u, float v,
       return;
 
    D3D10MapBuffer(
-         d3d10->overlays.vbo, 
+         d3d10->overlays.vbo,
          D3D10_MAP_WRITE_NO_OVERWRITE, 0, (void**)&sprites);
    sprites[index].coords.u = u;
    sprites[index].coords.v = v;
@@ -142,7 +148,7 @@ static bool d3d10_overlay_load(void* data, const void* image_data, unsigned num_
 #endif
    D3D10CreateBuffer(d3d10->device, &desc, NULL, &d3d10->overlays.vbo);
 
-   D3D10MapBuffer(d3d10->overlays.vbo, 
+   D3D10MapBuffer(d3d10->overlays.vbo,
          D3D10_MAP_WRITE_DISCARD, 0, (void**)&sprites);
 
    for (i = 0; i < (unsigned)num_images; i++)
@@ -416,7 +422,7 @@ static bool d3d10_gfx_set_shader(void* data,
          const char*       slang_path = d3d10->shader_preset->pass[i].source.path;
          const char*       vs_src     = d3d10->shader_preset->pass[i].source.string.vertex;
          const char*       ps_src     = d3d10->shader_preset->pass[i].source.string.fragment;
-         int               base_len   = strlen(slang_path) - strlen(".slang");
+         int               base_len   = strlen(slang_path) - STRLEN_CONST(".slang");
 
          strlcpy(vs_path, slang_path, sizeof(vs_path));
          strlcpy(ps_path, slang_path, sizeof(ps_path));
@@ -615,10 +621,10 @@ d3d10_gfx_init(const video_info_t* video,
 
 #ifdef HAVE_MONITOR
    if (!d3d10->vp.full_width)
-      d3d10->vp.full_width = 
+      d3d10->vp.full_width =
          current_mon.rcMonitor.right - current_mon.rcMonitor.left;
    if (!d3d10->vp.full_height)
-      d3d10->vp.full_height = 
+      d3d10->vp.full_height =
          current_mon.rcMonitor.bottom - current_mon.rcMonitor.top;
 #endif
 
@@ -628,11 +634,12 @@ d3d10_gfx_init(const video_info_t* video,
       RARCH_ERR("[D3D10]: win32_set_video_mode failed.\n");
       goto error;
    }
+
    d3d_input_driver(settings->arrays.input_driver, settings->arrays.input_joypad_driver, input, input_data);
 
    {
       UINT                 flags = 0;
-      DXGI_SWAP_CHAIN_DESC desc  = {0};
+      DXGI_SWAP_CHAIN_DESC desc  = {{0}};
 
       desc.BufferCount           = 1;
       desc.BufferDesc.Width      = d3d10->vp.full_width;
@@ -680,7 +687,7 @@ d3d10_gfx_init(const video_info_t* video,
    d3d10->viewport.Height = d3d10->vp.full_height;
    d3d10->resize_viewport = true;
    d3d10->vsync           = video->vsync;
-   d3d10->format          = video->rgb32 ? 
+   d3d10->format          = video->rgb32 ?
       DXGI_FORMAT_B8G8R8X8_UNORM : DXGI_FORMAT_B5G6R5_UNORM;
 
    d3d10->frame.texture[0].desc.Format = d3d10->format;
@@ -768,7 +775,7 @@ d3d10_gfx_init(const video_info_t* video,
          { { 1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } },
          { { 1.0f, 1.0f }, { 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } },
       };
-      D3D10_SUBRESOURCE_DATA 
+      D3D10_SUBRESOURCE_DATA
          vertexData               = { vertices };
 
       desc.ByteWidth              = sizeof(vertices);
@@ -926,7 +933,7 @@ d3d10_gfx_init(const video_info_t* video,
 
       blend_desc.BlendEnable[0] = FALSE;
       D3D10CreateBlendState(d3d10->device, &blend_desc, &d3d10->blend_disable);
-   }	
+   }
 
    {
       D3D10_RASTERIZER_DESC desc = { (D3D10_FILL_MODE)0 };
@@ -964,6 +971,45 @@ d3d10_gfx_init(const video_info_t* video,
       d3d10->hw.iface.D3DCompile        = D3DCompile;
    }
 #endif
+
+#ifdef __WINRT__
+   DXGICreateFactory2(&d3d10->factory);
+#else
+   DXGICreateFactory(&d3d10->factory);
+#endif
+
+   {
+      int i = 0;
+      DXGI_ADAPTER_DESC desc = {0};
+      char str[128];
+
+      str[0] = '\0';
+
+      while (true)
+      {
+#ifdef __WINRT__
+         if (FAILED(DXGIEnumAdapters2(d3d10->factory, i++, &d3d10->adapter)))
+            break;
+#else
+         if (FAILED(DXGIEnumAdapters(d3d10->factory, i++, &d3d10->adapter)))
+            break;
+#endif
+
+         IDXGIAdapter_GetDesc(d3d10->adapter, &desc);
+
+         utf16_to_char_string((const uint16_t*)
+               desc.Description, str, sizeof(str));
+
+         RARCH_LOG("[D3D10]: Using GPU: %s\n", str);
+
+         video_driver_set_gpu_device_string(str);
+
+         Release(d3d10->adapter);
+
+         /* We only care about the first adapter for now */
+         break;
+      }
+   }
 
    return d3d10;
 
@@ -1357,12 +1403,18 @@ static bool d3d10_gfx_frame(
    d3d10->sprites.enabled = true;
 
 #ifdef HAVE_MENU
+#ifndef HAVE_MENU_WIDGETS
    if (d3d10->menu.enabled)
+#endif
    {
       D3D10SetViewports(context, 1, &d3d10->viewport);
       D3D10SetVertexBuffer(context, 0, d3d10->sprites.vbo, sizeof(d3d10_sprite_t), 0);
-      menu_driver_frame(video_info);
    }
+#endif
+
+#ifdef HAVE_MENU
+   if (d3d10->menu.enabled)
+      menu_driver_frame(video_info);
    else
 #endif
       if (video_info->statistics_show)
@@ -1399,6 +1451,12 @@ static bool d3d10_gfx_frame(
          D3D10Draw(d3d10->device, 1, i);
       }
    }
+#endif
+
+#ifdef HAVE_MENU
+#ifdef HAVE_MENU_WIDGETS
+   menu_widgets_frame(video_info);
+#endif
 #endif
 
    if (msg && *msg)
@@ -1623,14 +1681,15 @@ static uint32_t d3d10_get_flags(void *data)
    uint32_t             flags = 0;
 
    BIT32_SET(flags, GFX_CTX_FLAGS_MENU_FRAME_FILTERING);
+#if defined(HAVE_SLANG) && defined(HAVE_SPIRV_CROSS)
+   BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_SLANG);
+#endif
 
    return flags;
 }
 
 static const video_poke_interface_t d3d10_poke_interface = {
    d3d10_get_flags,
-   NULL, /* set_coords */
-   NULL, /* set_mvp */
    d3d10_gfx_load_texture,
    d3d10_gfx_unload_texture,
    NULL, /* set_video_mode */
@@ -1667,6 +1726,14 @@ static void d3d10_gfx_get_poke_interface(void* data, const video_poke_interface_
    *iface = &d3d10_poke_interface;
 }
 
+#if defined(HAVE_MENU) && defined(HAVE_MENU_WIDGETS)
+static bool d3d10_menu_widgets_enabled(void *data)
+{
+   (void)data;
+   return true;
+}
+#endif
+
 video_driver_t video_d3d10 = {
    d3d10_gfx_init,
    d3d10_gfx_frame,
@@ -1688,4 +1755,8 @@ video_driver_t video_d3d10 = {
    d3d10_get_overlay_interface,
 #endif
    d3d10_gfx_get_poke_interface,
+   NULL, /* d3d10_wrap_type_to_enum */
+#if defined(HAVE_MENU) && defined(HAVE_MENU_WIDGETS)
+   d3d10_menu_widgets_enabled
+#endif
 };

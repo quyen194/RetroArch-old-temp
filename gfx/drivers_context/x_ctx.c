@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -23,9 +23,8 @@
 #include "../../config.h"
 #endif
 
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
 #include <GL/glx.h>
-#include <gfx/gl_capabilities.h>
 
 #ifndef GLX_SAMPLE_BUFFERS
 #define GLX_SAMPLE_BUFFERS 100000
@@ -54,7 +53,7 @@
 #include "../common/vulkan_common.h"
 #endif
 
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
 static int      (*g_pglSwapInterval)(int);
 static int      (*g_pglSwapIntervalSGI)(int);
 static void     (*g_pglSwapIntervalEXT)(Display*, GLXDrawable, int);
@@ -95,7 +94,7 @@ typedef struct gfx_ctx_x_data
    bool g_is_double;
    bool core_hw_context_enable;
 
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
    GLXWindow g_glx_win;
    GLXContext g_ctx, g_hw_ctx;
    GLXFBConfig g_fbc;
@@ -148,7 +147,7 @@ static const unsigned long retroarch_icon_data[] = {
 0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000
 };
 
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
 static PFNGLXCREATECONTEXTATTRIBSARBPROC glx_create_context_attribs;
 
 static int GLXExtensionSupported(Display *dpy, const char *extension)
@@ -193,7 +192,7 @@ static void gfx_ctx_x_destroy_resources(gfx_ctx_x_data_t *x)
       {
          case GFX_CTX_OPENGL_API:
          case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
             if (x->g_ctx)
             {
                if (x->swap_mode)
@@ -263,7 +262,7 @@ static void gfx_ctx_x_destroy_resources(gfx_ctx_x_data_t *x)
       }
    }
 
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
    g_pglSwapInterval    = NULL;
    g_pglSwapIntervalSGI = NULL;
    g_pglSwapIntervalEXT = NULL;
@@ -305,7 +304,7 @@ static void gfx_ctx_x_swap_interval(void *data, int interval)
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          x->g_interval = interval;
 
          if (g_pglSwapIntervalEXT)
@@ -353,7 +352,7 @@ static void gfx_ctx_x_swap_buffers(void *data, void *data2)
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#if defined(HAVE_OPENGL)
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          if (x->swap_mode)
          {
             if (x->g_interval)
@@ -457,7 +456,7 @@ static void *gfx_ctx_x_init(video_frame_info_t *video_info, void *data)
    int nelements           = 0;
    int major               = 0;
    int minor               = 0;
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
    static const int visual_attribs[] = {
       GLX_X_RENDERABLE     , True,
       GLX_DRAWABLE_TYPE    , GLX_WINDOW_BIT,
@@ -496,7 +495,7 @@ static void *gfx_ctx_x_init(video_frame_info_t *video_info, void *data)
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGLES) || defined(HAVE_OPENGL_CORE)
          glXQueryVersion(g_x11_dpy, &major, &minor);
 
          /* GLX 1.3+ minimum required. */
@@ -556,7 +555,7 @@ static void *gfx_ctx_x_init(video_frame_info_t *video_info, void *data)
    switch (x_api)
    {
       case GFX_CTX_OPENGL_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
 	 if (GLXExtensionSupported(g_x11_dpy, "GLX_EXT_swap_control_tear"))
 	 {
             RARCH_LOG("[GLX]: GLX_EXT_swap_control_tear supported.\n");
@@ -634,7 +633,7 @@ static bool gfx_ctx_x_set_video_mode(void *data,
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          vi = glXGetVisualFromFBConfig(g_x11_dpy, x->g_fbc);
          if (!vi)
             goto error;
@@ -757,7 +756,7 @@ static bool gfx_ctx_x_set_video_mode(void *data,
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          x->g_glx_win = glXCreateWindow(g_x11_dpy, x->g_fbc, g_x11_win, 0);
 #endif
          break;
@@ -811,7 +810,7 @@ static bool gfx_ctx_x_set_video_mode(void *data,
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          if (!x->g_ctx)
          {
             if (x->g_core_es || x->g_debug)
@@ -925,7 +924,7 @@ static bool gfx_ctx_x_set_video_mode(void *data,
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          glXGetConfig(g_x11_dpy, vi, GLX_DOUBLEBUFFER, &val);
          x->g_is_double = val;
 
@@ -1040,7 +1039,7 @@ static gfx_ctx_proc_t gfx_ctx_x_get_proc_address(const char *symbol)
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          return glXGetProcAddress((const GLubyte*)symbol);
 #else
          break;
@@ -1070,7 +1069,7 @@ static bool gfx_ctx_x_bind_api(void *data, enum gfx_ctx_api api,
    switch (api)
    {
       case GFX_CTX_OPENGL_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          return true;
 #else
          break;
@@ -1123,7 +1122,7 @@ static void gfx_ctx_x_bind_hw_render(void *data, bool enable)
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          x->g_use_hw_ctx = enable;
          if (!g_x11_dpy || !x->g_glx_win)
             return;
@@ -1170,6 +1169,28 @@ static uint32_t gfx_ctx_x_get_flags(void *data)
          {
             BIT32_SET(flags, GFX_CTX_FLAGS_MULTISAMPLING);
          }
+         if (string_is_equal(video_driver_get_ident(), "gl1")) { }
+         else if (string_is_equal(video_driver_get_ident(), "glcore"))
+		 {
+#ifdef HAVE_SLANG
+			 BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_SLANG);
+#endif
+		 }
+         else
+         {
+#ifdef HAVE_CG
+            if (!(x->core_hw_context_enable || x->g_core_es))
+               BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_CG);
+#endif
+#ifdef HAVE_GLSL
+            BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_GLSL);
+#endif
+         }
+         break;
+      case GFX_CTX_VULKAN_API:
+#ifdef HAVE_SLANG
+         BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_SLANG);
+#endif
          break;
       case GFX_CTX_NONE:
       default:
@@ -1209,7 +1230,7 @@ static void gfx_ctx_x_make_current(bool release)
    {
       case GFX_CTX_OPENGL_API:
       case GFX_CTX_OPENGL_ES_API:
-#ifdef HAVE_OPENGL
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGL1) || defined(HAVE_OPENGL_CORE)
          if (release)
             glXMakeContextCurrent(g_x11_dpy, None, None, NULL);
          else
