@@ -53,6 +53,7 @@
 #include <file/file_path.h>
 #include <streams/file_stream.h>
 #include <rhash.h>
+#include <features/features_cpu.h>
 
 #ifdef HAVE_MENU
 #include "../../menu/menu_driver.h"
@@ -109,6 +110,8 @@ typedef enum
    CFSystemDomainMask   = 8,       /* provided by Apple, unmodifiable (/System) */
    CFAllDomainsMask     = 0x0ffff  /* All domains: all of the above and future items */
 } CFDomainMask;
+
+static char darwin_cpu_model_name[64] = {0};
 
 static NSSearchPathDirectory NSConvertFlagsCF(unsigned flags)
 {
@@ -398,6 +401,7 @@ static void frontend_darwin_get_environment_settings(int *argc, char *argv[],
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_SAVESTATE], home_dir_buf, "states", sizeof(g_defaults.dirs[DEFAULT_DIR_SAVESTATE]));
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_RECORD_CONFIG], home_dir_buf, "records_config", sizeof(g_defaults.dirs[DEFAULT_DIR_RECORD_CONFIG]));
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_RECORD_OUTPUT], home_dir_buf, "records", sizeof(g_defaults.dirs[DEFAULT_DIR_RECORD_OUTPUT]));
+   fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_LOGS], home_dir_buf, "logs", sizeof(g_defaults.dirs[DEFAULT_DIR_LOGS]));
 #if defined(IOS)
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_PLAYLIST], home_dir_buf, "playlists", sizeof(g_defaults.dirs[DEFAULT_DIR_PLAYLIST]));
 #endif
@@ -436,7 +440,7 @@ static void frontend_darwin_get_environment_settings(int *argc, char *argv[],
        strlcpy(g_defaults.path.buildbot_server_url, "http://buildbot.libretro.com/nightly/apple/ios9/latest/", sizeof(g_defaults.path.buildbot_server_url));
 
     fill_pathname_join(assets_zip_path, bundle_path_buf, "assets.zip", sizeof(assets_zip_path));
-    
+
     if (filestream_exists(assets_zip_path))
     {
        settings_t *settings = config_get_ptr();
@@ -465,7 +469,6 @@ static void frontend_darwin_get_environment_settings(int *argc, char *argv[],
       if (access(g_defaults.dirs[DEFAULT_DIR_SYSTEM], 0755) != 0)
          RARCH_ERR("Failed to create or access system directory: %s.\n", g_defaults.dirs[DEFAULT_DIR_SYSTEM]);
    }
-
 
    CFRelease(bundle_path);
    CFRelease(bundle_url);
@@ -535,7 +538,7 @@ static int frontend_darwin_get_rating(void)
    if (strstr(model, "iPad5,3") || strstr(model, "iPad5,4"))
       return 18;
 
-   /* TODO/FIXME - 
+   /* TODO/FIXME -
       - more ratings for more systems
       - determine rating more intelligently*/
    return -1;
@@ -633,7 +636,7 @@ static enum frontend_architecture frontend_darwin_get_architecture(void)
 
    if (uname(&buffer) != 0)
       return FRONTEND_ARCH_NONE;
-   
+
    (void)buffer_hash;
 
 #ifdef OSX
@@ -706,7 +709,7 @@ static uint64_t frontend_darwin_get_mem_total(void)
     int mib[2]     = { CTL_HW, HW_MEMSIZE };
     u_int namelen  = sizeof(mib) / sizeof(mib[0]);
     size_t len     = sizeof(size);
-    
+
     if (sysctl(mib, namelen, &size, &len, NULL, 0) < 0)
         return 0;
     return size;
@@ -722,12 +725,12 @@ static uint64_t frontend_darwin_get_mem_used(void)
     vm_statistics64_data_t vm_stats;
     mach_port_t mach_port        = mach_host_self();
     mach_msg_type_number_t count = sizeof(vm_stats) / sizeof(natural_t);
-    
+
     if (KERN_SUCCESS == host_page_size(mach_port, &page_size) &&
         KERN_SUCCESS == host_statistics64(mach_port, HOST_VM_INFO,
                                           (host_info64_t)&vm_stats, &count))
     {
-        
+
         long long used_memory = ((int64_t)vm_stats.active_count +
                                  (int64_t)vm_stats.inactive_count +
                                  (int64_t)vm_stats.wire_count) *  (int64_t)page_size;
@@ -735,6 +738,12 @@ static uint64_t frontend_darwin_get_mem_used(void)
     }
 #endif
     return 0;
+}
+
+static const char* frontend_darwin_get_cpu_model_name(void)
+{
+   cpu_features_get_model_name(darwin_cpu_model_name, sizeof(darwin_cpu_model_name));
+   return darwin_cpu_model_name;
 }
 
 frontend_ctx_driver_t frontend_ctx_darwin = {
@@ -764,5 +773,11 @@ frontend_ctx_driver_t frontend_ctx_darwin = {
    NULL,                         /* watch_path_for_changes */
    NULL,                         /* check_for_path_changes */
    NULL,                         /* set_sustained_performance_mode */
+#if (defined(OSX) && !(defined(__ppc__) || defined(__ppc64__)))
+    frontend_darwin_get_cpu_model_name,
+#else
+   NULL,
+#endif
+   NULL,                         /* get_user_language */
    "darwin",
 };

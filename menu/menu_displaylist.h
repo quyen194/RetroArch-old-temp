@@ -23,6 +23,7 @@
 #include <retro_common_api.h>
 #include <lists/file_list.h>
 
+#include "../msg_hash.h"
 #include "../setting_list.h"
 
 #ifndef COLLECTION_SIZE
@@ -31,24 +32,26 @@
 
 RETRO_BEGIN_DECLS
 
+/* NOTE: Order matters - only add new entries at
+ * the bottom */
 enum menu_displaylist_parse_type
 {
-   PARSE_NONE                = (1 << 0),
-   PARSE_GROUP               = (1 << 1),
-   PARSE_ACTION              = (1 << 2),
-   PARSE_ONLY_INT            = (1 << 3),
-   PARSE_ONLY_UINT           = (1 << 4),
-   PARSE_ONLY_BOOL           = (1 << 5),
-   PARSE_ONLY_FLOAT          = (1 << 6),
-   PARSE_ONLY_BIND           = (1 << 7),
-   PARSE_ONLY_GROUP          = (1 << 8),
-   PARSE_ONLY_STRING         = (1 << 9),
-   PARSE_ONLY_PATH           = (1 << 10),
-   PARSE_ONLY_STRING_OPTIONS = (1 << 11),
-   PARSE_ONLY_HEX            = (1 << 12),
-   PARSE_ONLY_DIR            = (1 << 13),
-   PARSE_SUB_GROUP           = (1 << 14),
-   PARSE_ONLY_SIZE           = (1 << 15)
+   PARSE_NONE = 0,
+   PARSE_GROUP,
+   PARSE_ACTION,
+   PARSE_ONLY_INT,
+   PARSE_ONLY_UINT,
+   PARSE_ONLY_BOOL,
+   PARSE_ONLY_FLOAT,
+   PARSE_ONLY_BIND,
+   PARSE_ONLY_GROUP,
+   PARSE_ONLY_STRING,
+   PARSE_ONLY_PATH,
+   PARSE_ONLY_STRING_OPTIONS,
+   PARSE_ONLY_HEX,
+   PARSE_ONLY_DIR,
+   PARSE_SUB_GROUP,
+   PARSE_ONLY_SIZE
 };
 
 enum menu_displaylist_ctl_state
@@ -250,6 +253,8 @@ bool menu_displaylist_process(menu_displaylist_info_t *info);
 bool menu_displaylist_push(menu_displaylist_ctx_entry_t *entry);
 
 void menu_displaylist_info_free(menu_displaylist_info_t *info);
+
+unsigned menu_displaylist_build_list(file_list_t *list, enum menu_displaylist_ctl_state type);
 
 void menu_displaylist_info_init(menu_displaylist_info_t *info);
 

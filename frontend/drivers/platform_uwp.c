@@ -1,6 +1,6 @@
 /* RetroArch - A frontend for libretro.
  * Copyright (C) 2011-2017 - Daniel De Matteis
- * Copyright (C) 2016-2017 - Brad Parker
+ * Copyright (C) 2016-2019 - Brad Parker
  *
  * RetroArch is free software: you can redistribute it and/or modify it under the terms
  * of the GNU General Public License as published by the Free Software Found-
@@ -323,7 +323,7 @@ static int frontend_uwp_parse_drive_list(void *data, bool load_content)
 static void frontend_uwp_environment_get(int *argc, char *argv[],
       void *args, void *params_data)
 {
-   /* On UWP, we have to use the writable directory 
+   /* On UWP, we have to use the writable directory
     * instead of the install directory. */
    fill_pathname_expand_special(g_defaults.dirs[DEFAULT_DIR_ASSETS],
       "~\\assets", sizeof(g_defaults.dirs[DEFAULT_DIR_ASSETS]));
@@ -353,7 +353,7 @@ static void frontend_uwp_environment_get(int *argc, char *argv[],
       "~\\thumbnails", sizeof(g_defaults.dirs[DEFAULT_DIR_THUMBNAILS]));
    fill_pathname_expand_special(g_defaults.dirs[DEFAULT_DIR_OVERLAY],
       "~\\overlays", sizeof(g_defaults.dirs[DEFAULT_DIR_OVERLAY]));
-   /* This one is an exception: cores have to be loaded from 
+   /* This one is an exception: cores have to be loaded from
     * the install directory,
     * since this is the only place UWP apps can take .dlls from */
    fill_pathname_expand_special(g_defaults.dirs[DEFAULT_DIR_CORE],
@@ -374,9 +374,11 @@ static void frontend_uwp_environment_get(int *argc, char *argv[],
       "~\\states", sizeof(g_defaults.dirs[DEFAULT_DIR_SAVESTATE]));
    fill_pathname_expand_special(g_defaults.dirs[DEFAULT_DIR_SYSTEM],
       "~\\system", sizeof(g_defaults.dirs[DEFAULT_DIR_SYSTEM]));
+   fill_pathname_expand_special(g_defaults.dirs[DEFAULT_DIR_LOGS],
+      "~\\logs", sizeof(g_defaults.dirs[DEFAULT_DIR_LOGS]));
 
 #ifdef HAVE_MENU
-#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES)
+#if defined(HAVE_OPENGL) || defined(HAVE_OPENGLES) || defined(HAVE_OPENGL_CORE)
    snprintf(g_defaults.settings.menu,
          sizeof(g_defaults.settings.menu), "xmb");
 #endif
@@ -444,5 +446,7 @@ frontend_ctx_driver_t frontend_ctx_uwp = {
    NULL,                            /* watch_path_for_changes */
    NULL,                            /* check_for_path_changes */
    NULL,                            /* set_sustained_performance_mode */
+   NULL,                            /* get_cpu_model_name */
+   NULL,                            /* get_user_language */
    "uwp"
 };

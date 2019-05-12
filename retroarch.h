@@ -24,6 +24,9 @@
 #include <retro_common_api.h>
 #include <boolean.h>
 
+#include <queues/task_queue.h>
+#include <queues/message_queue.h>
+
 #include "core_type.h"
 #include "core.h"
 
@@ -137,8 +140,6 @@ enum rarch_ctl_state
    RARCH_CTL_SET_NONBLOCK_FORCED,
    RARCH_CTL_UNSET_NONBLOCK_FORCED,
 
-   RARCH_CTL_SET_LIBRETRO_PATH,
-
    RARCH_CTL_IS_PAUSED,
    RARCH_CTL_SET_PAUSED,
 
@@ -180,7 +181,10 @@ enum rarch_ctl_state
 
    /* HTTP server */
    RARCH_CTL_HTTPSERVER_INIT,
-   RARCH_CTL_HTTPSERVER_DESTROY
+   RARCH_CTL_HTTPSERVER_DESTROY,
+
+   RARCH_CTL_CONTENT_RUNTIME_LOG_INIT,
+   RARCH_CTL_CONTENT_RUNTIME_LOG_DEINIT
 };
 
 enum rarch_capabilities
@@ -374,8 +378,16 @@ global_t *global_get_ptr(void);
  **/
 int runloop_iterate(unsigned *sleep_ms);
 
-void runloop_msg_queue_push(const char *msg, unsigned prio,
-      unsigned duration, bool flush);
+void runloop_task_msg_queue_push(retro_task_t *task,
+      const char *msg,
+      unsigned prio, unsigned duration,
+      bool flush);
+
+void runloop_msg_queue_push(const char *msg,
+      unsigned prio, unsigned duration,
+      bool flush,
+      char *title,
+      enum message_queue_icon icon, enum message_queue_category category);
 
 bool runloop_msg_queue_pull(const char **ret);
 
@@ -405,6 +417,20 @@ void runloop_msg_queue_unlock(void);
 #endif
 
 void rarch_force_video_driver_fallback(const char *driver);
+
+void rarch_core_runtime_tick(void);
+
+void rarch_send_debug_info(void);
+
+bool rarch_write_debug_info(void);
+
+void rarch_get_cpu_architecture_string(char *cpu_arch_str, size_t len);
+
+void rarch_log_file_init(void);
+
+void rarch_log_file_deinit(void);
+
+enum retro_language rarch_get_language_from_iso(const char *lang);
 
 RETRO_END_DECLS
 

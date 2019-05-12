@@ -21,6 +21,8 @@
 #include <boolean.h>
 #include <retro_common_api.h>
 
+#include <queues/task_queue.h>
+
 #ifdef HAVE_CONFIG_H
 #include "../config.h"
 #endif
@@ -147,6 +149,8 @@ enum
 };
 
 /* Function callbacks */
+int action_cb_push_dropdown_item_resolution(const char *path,
+      const char *label, unsigned type, size_t idx, size_t entry_idx);
 
 int action_cancel_pop_default(const char *path,
       const char *label, unsigned type, size_t idx);
@@ -288,7 +292,8 @@ void menu_cbs_init(void *data,
 
 int menu_cbs_exit(void);
 
-void cb_generic_download(void *task_data,
+void cb_generic_download(retro_task_t *task,
+      void *task_data,
       void *user_data, const char *err);
 
 RETRO_END_DECLS

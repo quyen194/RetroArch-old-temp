@@ -1,6 +1,6 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -18,7 +18,6 @@
 #include <string/stdstring.h>
 #include <file/file_path.h>
 #include <file/archive_file.h>
-#include <streams/file_stream.h>
 #include <retro_miscellaneous.h>
 #include <compat/strl.h>
 
@@ -47,14 +46,14 @@ static int file_decompressed_subdir(const char *name,
 {
    char path_dir[PATH_MAX_LENGTH];
    char path[PATH_MAX_LENGTH];
+   size_t name_len            = strlen(name);
+   char last_char             = name[name_len - 1];
 
    path_dir[0] = path[0] = '\0';
 
-   /* Ignore directories. */
-   if (
-         name[strlen(name) - 1] == '/' || 
-         name[strlen(name) - 1] == '\\')
-      goto next_file;
+   /* Ignore directories, go to next file. */
+   if (last_char == '/' || last_char == '\\')
+      return 1;
 
    if (strstr(name, userdata->dec->subdir) != name)
       return 1;
@@ -77,7 +76,6 @@ static int file_decompressed_subdir(const char *name,
    RARCH_LOG("[deflate subdir] Path: %s, CRC32: 0x%x\n", name, crc32);
 #endif
 
-next_file:
    return 1;
 
 error:
@@ -94,13 +92,14 @@ static int file_decompressed(const char *name, const char *valid_exts,
 {
    char path[PATH_MAX_LENGTH];
    decompress_state_t    *dec = userdata->dec;
+   size_t name_len            = strlen(name);
+   char last_char             = name[name_len - 1];
 
    path[0] = '\0';
 
-   /* Ignore directories. */
-   if (  name[strlen(name) - 1] == '/' ||
-         name[strlen(name) - 1] == '\\')
-      goto next_file;
+   /* Ignore directories, go to next file. */
+   if (last_char == '/' || last_char == '\\')
+      return 1;
 
    /* Make directory */
    fill_pathname_join(path, dec->target_dir, name, sizeof(path));
@@ -118,8 +117,6 @@ static int file_decompressed(const char *name, const char *valid_exts,
 #if 0
    RARCH_LOG("[deflate] Path: %s, CRC32: 0x%x\n", name, crc32);
 #endif
-
-next_file:
    return 1;
 
 error:
@@ -271,7 +268,8 @@ bool task_push_decompress(
       const char *subdir,
       const char *valid_ext,
       retro_task_callback_t cb,
-      void *user_data)
+      void *user_data,
+      void *frontend_userdata)
 {
    char tmp[PATH_MAX_LENGTH];
    const char *ext            = NULL;
@@ -292,7 +290,7 @@ bool task_push_decompress(
 
    /* ZIP or APK only */
    if (
-         !filestream_exists(source_file) ||
+         !path_is_valid(source_file) ||
          (
              !string_is_equal_noncase(ext, "zip")
           && !string_is_equal_noncase(ext, "apk")
@@ -338,6 +336,8 @@ bool task_push_decompress(
 
    if (!t)
       goto error;
+
+   t->frontend_userdata = frontend_userdata;
 
    t->state       = s;
    t->handler     = task_decompress_handler;

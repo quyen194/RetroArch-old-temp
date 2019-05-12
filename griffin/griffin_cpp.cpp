@@ -58,6 +58,29 @@ UI
 #include "../ui/drivers/qt/thumbnaildownload.cpp"
 #include "../ui/drivers/qt/thumbnailpackdownload.cpp"
 #include "../ui/drivers/qt/playlistthumbnaildownload.cpp"
+#ifdef HAVE_MENU
+#include "../ui/drivers/qt/settingswidgets.cpp"
+#include "../ui/drivers/qt/options/drivers.cpp"
+#include "../ui/drivers/qt/options/video.cpp"
+#include "../ui/drivers/qt/options/audio.cpp"
+#include "../ui/drivers/qt/options/saving.cpp"
+#include "../ui/drivers/qt/options/throttle.cpp"
+#include "../ui/drivers/qt/options/osd.cpp"
+#include "../ui/drivers/qt/options/input.cpp"
+#include "../ui/drivers/qt/options/directory.cpp"
+#include "../ui/drivers/qt/options/logging.cpp"
+#include "../ui/drivers/qt/options/core.cpp"
+#include "../ui/drivers/qt/options/configuration.cpp"
+#include "../ui/drivers/qt/options/latency.cpp"
+#include "../ui/drivers/qt/options/playlists.cpp"
+#include "../ui/drivers/qt/options/user.cpp"
+#include "../ui/drivers/qt/options/recording.cpp"
+#include "../ui/drivers/qt/options/ui.cpp"
+#include "../ui/drivers/qt/options/achievements.cpp"
+#include "../ui/drivers/qt/options/network.cpp"
+#include "../ui/drivers/qt/moc_settingswidgets.cpp"
+#include "../ui/drivers/qt/options/moc_options.cpp"
+#endif
 #include "../ui/drivers/moc_ui_qt.cpp"
 #include "../ui/drivers/qt/moc_coreinfodialog.cpp"
 #include "../ui/drivers/qt/moc_coreoptionsdialog.cpp"
@@ -74,6 +97,10 @@ VIDEO DRIVER
 ============================================================ */
 #ifdef HAVE_VULKAN
 #include "../gfx/drivers_shader/shader_vulkan.cpp"
+#endif
+
+#if defined(HAVE_OPENGL_CORE)
+#include "../gfx/drivers_shader/shader_gl_core.cpp"
 #endif
 
 #if defined(HAVE_SPIRV_CROSS)

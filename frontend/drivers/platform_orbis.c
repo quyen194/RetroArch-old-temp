@@ -115,7 +115,6 @@ static void frontend_orbis_get_environment_settings(int *argc, char *argv[],
 
    sceSystemServiceHideSplashScreen();
 
-
 	uintptr_t intptr=0;
 	sscanf(argv[1],"%p",&intptr);
    argv[1] = NULL;
@@ -170,6 +169,8 @@ static void frontend_orbis_get_environment_settings(int *argc, char *argv[],
          "overlays", sizeof(g_defaults.dirs[DEFAULT_DIR_OVERLAY]));
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_THUMBNAILS], user_path,
          "thumbnails", sizeof(g_defaults.dirs[DEFAULT_DIR_THUMBNAILS]));
+   fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_LOGS], user_path,
+         "logs", sizeof(g_defaults.dirs[DEFAULT_DIR_LOGS]));
    strlcpy(g_defaults.dirs[DEFAULT_DIR_CONTENT_HISTORY],
          user_path, sizeof(g_defaults.dirs[DEFAULT_DIR_CONTENT_HISTORY]));
    fill_pathname_join(g_defaults.path.config, user_path,
@@ -367,5 +368,7 @@ frontend_ctx_driver_t frontend_ctx_orbis = {
    NULL,                         /* watch_path_for_changes */
    NULL,                         /* check_for_path_changes */
    NULL,                         /* set_sustained_performance_mode */
+   NULL,                         /* get_cpu_model_name */
+   NULL,                         /* get_user_language */
    "orbis",
 };

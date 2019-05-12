@@ -1,6 +1,6 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -23,6 +23,7 @@
 
 #ifdef HAVE_CHEEVOS
 #include "../../cheevos/cheevos.h"
+#include "../../cheevos-new/cheevos.h" /* RCHEEVOS TODO: remove line */
 #endif
 
 #include "menu_dialog.h"
@@ -173,10 +174,14 @@ int menu_dialog_iterate(char *s, size_t len, const char *label)
 
 #ifdef HAVE_CHEEVOS
       case MENU_DIALOG_HELP_CHEEVOS_DESCRIPTION:
-         desc_info.idx = menu_dialog_current_id;
-         desc_info.s   = s;
-         desc_info.len = len;
-         cheevos_get_description(&desc_info);
+         {  /* RCHEEVOS TODO: remove brackets, settings and settings test */
+            settings_t *settings = config_get_ptr();
+            desc_info.idx = menu_dialog_current_id;
+            desc_info.s   = s;
+            desc_info.len = len;
+            !settings->bools.cheevos_old_enable ? rcheevos_get_description((rcheevos_ctx_desc_t*) &desc_info) : cheevos_get_description(&desc_info);
+
+         }
          break;
 #endif
 
@@ -196,6 +201,11 @@ int menu_dialog_iterate(char *s, size_t len, const char *label)
       case MENU_DIALOG_HELP_AUDIO_VIDEO_TROUBLESHOOTING:
          menu_hash_get_help_enum(
                MENU_ENUM_LABEL_VALUE_HELP_AUDIO_VIDEO_TROUBLESHOOTING_DESC,
+               s, len);
+         break;
+      case MENU_DIALOG_HELP_SEND_DEBUG_INFO:
+         menu_hash_get_help_enum(
+               MENU_ENUM_LABEL_VALUE_HELP_SEND_DEBUG_INFO_DESC,
                s, len);
          break;
       case MENU_DIALOG_HELP_SCANNING_CONTENT:

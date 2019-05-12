@@ -28,11 +28,17 @@
 #include "../common/d3d12_common.h"
 #include "../common/d3dcompiler_common.h"
 
-#include "../../menu/menu_driver.h"
 #include "../../driver.h"
 #include "../../verbosity.h"
 #include "../../configuration.h"
 #include "../../retroarch.h"
+
+#ifdef HAVE_MENU
+#include "../../menu/menu_driver.h"
+#ifdef HAVE_MENU_WIDGETS
+#include "../../menu/widgets/menu_widgets.h"
+#endif
+#endif
 
 #include "wiiu/wiiu_dbg.h"
 
@@ -328,8 +334,9 @@ static bool d3d12_gfx_set_shader(void* data, enum rarch_shader_type type, const 
 {
 #if defined(HAVE_SLANG) && defined(HAVE_SPIRV_CROSS)
    unsigned         i;
-   d3d12_texture_t* source;
-   d3d12_video_t*   d3d12 = (d3d12_video_t*)data;
+   d3d12_texture_t* source = NULL;
+   config_file_t* conf     = NULL;
+   d3d12_video_t*   d3d12  = (d3d12_video_t*)data;
 
    if (!d3d12)
       return false;
@@ -347,7 +354,7 @@ static bool d3d12_gfx_set_shader(void* data, enum rarch_shader_type type, const 
       return false;
    }
 
-   config_file_t* conf = config_file_new(path);
+   conf = config_file_new(path);
 
    if (!conf)
       return false;
@@ -427,7 +434,7 @@ static bool d3d12_gfx_set_shader(void* data, enum rarch_shader_type type, const 
          const char*       slang_path = d3d12->shader_preset->pass[i].source.path;
          const char*       vs_src     = d3d12->shader_preset->pass[i].source.string.vertex;
          const char*       ps_src     = d3d12->shader_preset->pass[i].source.string.fragment;
-         int               base_len   = strlen(slang_path) - strlen(".slang");
+         int               base_len   = strlen(slang_path) - STRLEN_CONST(".slang");
 
          strlcpy(vs_path, slang_path, sizeof(vs_path));
          strlcpy(ps_path, slang_path, sizeof(ps_path));
@@ -1471,13 +1478,19 @@ static bool d3d12_gfx_frame(
    d3d12->sprites.enabled = true;
 
 #ifdef HAVE_MENU
+#ifndef HAVE_MENU_WIDGETS
    if (d3d12->menu.enabled)
+#endif
    {
       D3D12RSSetViewports(d3d12->queue.cmd, 1, &d3d12->chain.viewport);
       D3D12RSSetScissorRects(d3d12->queue.cmd, 1, &d3d12->chain.scissorRect);
       D3D12IASetVertexBuffers(d3d12->queue.cmd, 0, 1, &d3d12->sprites.vbo_view);
-      menu_driver_frame(video_info);
    }
+#endif
+
+#ifdef HAVE_MENU
+   if (d3d12->menu.enabled)
+      menu_driver_frame(video_info);
    else
 #endif
       if (video_info->statistics_show)
@@ -1529,6 +1542,12 @@ static bool d3d12_gfx_frame(
          D3D12DrawInstanced(d3d12->queue.cmd, 1, 1, i, 0);
       }
    }
+#endif
+
+#ifdef HAVE_MENU
+#ifdef HAVE_MENU_WIDGETS
+   menu_widgets_frame(video_info);
+#endif
 #endif
 
    if (msg && *msg)
@@ -1627,13 +1646,13 @@ static void d3d12_set_menu_texture_frame(
 {
    d3d12_video_t* d3d12    = (d3d12_video_t*)data;
    settings_t*    settings = config_get_ptr();
-   int            pitch    = width * 
+   int            pitch    = width *
       (rgb32 ? sizeof(uint32_t) : sizeof(uint16_t));
-   DXGI_FORMAT    format   = rgb32 ? DXGI_FORMAT_B8G8R8A8_UNORM 
+   DXGI_FORMAT    format   = rgb32 ? DXGI_FORMAT_B8G8R8A8_UNORM
       : (DXGI_FORMAT)DXGI_FORMAT_EX_A4R4G4B4_UNORM;
 
    if (
-         d3d12->menu.texture.desc.Width  != width || 
+         d3d12->menu.texture.desc.Width  != width ||
          d3d12->menu.texture.desc.Height != height)
    {
       d3d12->menu.texture.desc.Width  = width;
@@ -1776,14 +1795,15 @@ static uint32_t d3d12_get_flags(void *data)
    uint32_t             flags = 0;
 
    BIT32_SET(flags, GFX_CTX_FLAGS_MENU_FRAME_FILTERING);
+#if defined(HAVE_SLANG) && defined(HAVE_SPIRV_CROSS)
+   BIT32_SET(flags, GFX_CTX_FLAGS_SHADERS_SLANG);
+#endif
 
    return flags;
 }
 
 static const video_poke_interface_t d3d12_poke_interface = {
    d3d12_get_flags,
-   NULL, /* set_coords */
-   NULL, /* set_mvp */
    d3d12_gfx_load_texture,
    d3d12_gfx_unload_texture,
    NULL, /* set_video_mode */
@@ -1816,6 +1836,14 @@ static void d3d12_gfx_get_poke_interface(void* data, const video_poke_interface_
    *iface = &d3d12_poke_interface;
 }
 
+#if defined(HAVE_MENU) && defined(HAVE_MENU_WIDGETS)
+static bool d3d12_menu_widgets_enabled(void *data)
+{
+   (void)data;
+   return true;
+}
+#endif
+
 video_driver_t video_d3d12 = {
    d3d12_gfx_init,
    d3d12_gfx_frame,
@@ -1837,4 +1865,8 @@ video_driver_t video_d3d12 = {
    d3d12_get_overlay_interface,
 #endif
    d3d12_gfx_get_poke_interface,
+   NULL, /* d3d12_wrap_type_to_enum */
+#if defined(HAVE_MENU) && defined(HAVE_MENU_WIDGETS)
+   d3d12_menu_widgets_enabled
+#endif
 };

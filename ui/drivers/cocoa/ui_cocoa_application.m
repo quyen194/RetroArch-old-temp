@@ -23,6 +23,10 @@
 #include "cocoa_common.h"
 #include "../../ui_companion_driver.h"
 
+#ifndef NSEventMaskAny
+#define NSEventMaskAny NSAnyEventMask
+#endif
+
 static void* ui_application_cocoa_initialize(void)
 {
    return NULL;
@@ -30,7 +34,7 @@ static void* ui_application_cocoa_initialize(void)
 
 static bool ui_application_cocoa_pending_events(void)
 {
-   NSEvent *event = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES];
+   NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES];
    if (!event)
       return false;
    return true;
@@ -40,12 +44,16 @@ static void ui_application_cocoa_process_events(void)
 {
     while (1)
     {
-        NSEvent *event = [NSApp nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES];
+        NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES];
         if (!event)
             break;
+#ifndef HAVE_COCOA_METAL
         [event retain];
+#endif
         [NSApp sendEvent: event];
-        [event release];
+#ifndef HAVE_COCOA_METAL
+        [event retain];
+#endif
     }
 }
 

@@ -1,6 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -17,12 +18,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 #include <compat/strl.h>
 #include <file/file_path.h>
 #include <file/config_file.h>
 #include <encodings/utf.h>
 #include <string/stdstring.h>
+#include <math/float_minmax.h>
 
 #include <retro_assert.h>
 
@@ -278,6 +281,7 @@ static uint16_t input_config_pid[MAX_USERS];
 
 static char input_device_display_names[MAX_INPUT_DEVICES][64];
 static char input_device_config_names [MAX_INPUT_DEVICES][64];
+static char input_device_config_paths [MAX_INPUT_DEVICES][64];
 char        input_device_names        [MAX_INPUT_DEVICES][64];
 
 uint64_t lifecycle_state;
@@ -352,6 +356,8 @@ const struct input_bind_map input_config_bind_map[RARCH_BIND_LIST_END_NULL] = {
       DECLARE_META_BIND(2, audio_mute,            RARCH_MUTE,                  MENU_ENUM_LABEL_VALUE_INPUT_META_MUTE),
       DECLARE_META_BIND(2, osk_toggle,            RARCH_OSK,                   MENU_ENUM_LABEL_VALUE_INPUT_META_OSK),
       DECLARE_META_BIND(2, fps_toggle,            RARCH_FPS_TOGGLE,            MENU_ENUM_LABEL_VALUE_INPUT_META_FPS_TOGGLE),
+      DECLARE_META_BIND(2, send_debug_info,       RARCH_SEND_DEBUG_INFO,       MENU_ENUM_LABEL_VALUE_INPUT_META_SEND_DEBUG_INFO),
+      DECLARE_META_BIND(2, netplay_host_toggle,   RARCH_NETPLAY_HOST_TOGGLE,   MENU_ENUM_LABEL_VALUE_INPUT_META_NETPLAY_HOST_TOGGLE),
       DECLARE_META_BIND(2, netplay_game_watch,    RARCH_NETPLAY_GAME_WATCH,    MENU_ENUM_LABEL_VALUE_INPUT_META_NETPLAY_GAME_WATCH),
       DECLARE_META_BIND(2, enable_hotkey,         RARCH_ENABLE_HOTKEY,         MENU_ENUM_LABEL_VALUE_INPUT_META_ENABLE_HOTKEY),
       DECLARE_META_BIND(2, volume_up,             RARCH_VOLUME_UP,             MENU_ENUM_LABEL_VALUE_INPUT_META_VOLUME_UP),
@@ -419,7 +425,6 @@ static bool input_driver_block_hotkey             = false;
 static bool input_driver_block_libretro_input     = false;
 static bool input_driver_nonblock_state           = false;
 bool input_driver_flushing_input                  = false;
-static bool input_driver_data_own                 = false;
 static float input_driver_axis_threshold          = 0.0f;
 static unsigned input_driver_max_users            = 0;
 
@@ -545,17 +550,6 @@ uint64_t input_driver_get_capabilities(void)
    return current_input->get_capabilities(current_input_data);
 }
 
-void input_driver_set(const input_driver_t **input, void **input_data)
-{
-   if (input && input_data)
-   {
-      *input      = current_input;
-      *input_data = current_input_data;
-   }
-
-   input_driver_set_own_driver();
-}
-
 void input_driver_keyboard_mapping_set_block(bool value)
 {
    if (current_input->keyboard_mapping_set_block)
@@ -598,7 +592,7 @@ float input_sensor_get_input(unsigned port, unsigned id)
 void input_poll(void)
 {
    size_t i;
-   settings_t *settings           = config_get_ptr();
+   settings_t *settings;
    uint8_t max_users              = (uint8_t)input_driver_max_users;
 
    current_input->poll(current_input_data);
@@ -611,19 +605,22 @@ void input_poll(void)
    if (input_driver_block_libretro_input)
       return;
 
+   settings = config_get_ptr();
+
    for (i = 0; i < max_users; i++)
    {
-      if (libretro_input_binds[i][RARCH_TURBO_ENABLE].valid)
-      {
-         rarch_joypad_info_t joypad_info;
-         joypad_info.axis_threshold = input_driver_axis_threshold;
-         joypad_info.joy_idx        = settings->uints.input_joypad_map[i];
-         joypad_info.auto_binds     = input_autoconf_binds[joypad_info.joy_idx];
+      rarch_joypad_info_t joypad_info;
 
-         input_driver_turbo_btns.frame_enable[i] = current_input->input_state(
-               current_input_data, joypad_info, libretro_input_binds,
-               (unsigned)i, RETRO_DEVICE_JOYPAD, 0, RARCH_TURBO_ENABLE);
-      }
+      if (!libretro_input_binds[i][RARCH_TURBO_ENABLE].valid)
+         continue;
+
+      joypad_info.axis_threshold              = input_driver_axis_threshold;
+      joypad_info.joy_idx                     = settings->uints.input_joypad_map[i];
+      joypad_info.auto_binds                  = input_autoconf_binds[joypad_info.joy_idx];
+
+      input_driver_turbo_btns.frame_enable[i] = current_input->input_state(
+            current_input_data, joypad_info, libretro_input_binds,
+            (unsigned)i, RETRO_DEVICE_JOYPAD, 0, RARCH_TURBO_ENABLE);
    }
 
 #ifdef HAVE_OVERLAY
@@ -664,11 +661,14 @@ void input_poll(void)
 int16_t input_state(unsigned port, unsigned device,
       unsigned idx, unsigned id)
 {
-   int16_t res = 0, res_overlay = 0;
+   int16_t res         = 0;
+#ifdef HAVE_OVERLAY
+   int16_t res_overlay = 0;
+#endif
 
    /* used to reset input state of a button when the gamepad mapper
       is in action for that button*/
-   bool reset_state  = false;
+   bool reset_state    = false;
 
    device &= RETRO_DEVICE_MASK;
 
@@ -709,7 +709,8 @@ int16_t input_state(unsigned port, unsigned device,
 
 #ifdef HAVE_OVERLAY
       if (overlay_ptr)
-         input_state_overlay(overlay_ptr, &res_overlay, port, device, idx, id);
+         input_state_overlay(overlay_ptr,
+               &res_overlay, port, device, idx, id);
 #endif
 
 #ifdef HAVE_NETWORKGAMEPAD
@@ -881,6 +882,81 @@ static INLINE bool input_keys_pressed_iterate(unsigned i,
    return false;
 }
 
+static int16_t input_joypad_axis(const input_device_driver_t *drv,
+      unsigned port, uint32_t joyaxis)
+{
+   settings_t *settings           = config_get_ptr();
+   float input_analog_deadzone    = settings->floats.input_analog_deadzone;
+   float input_analog_sensitivity = settings->floats.input_analog_sensitivity;
+   int16_t val                    = drv->axis(port, joyaxis);
+
+   if (input_analog_deadzone)
+   {
+      int16_t x, y;
+      float normalized;
+      float normal_mag;
+      /* 2/3 are the right analog X/Y axes */
+      unsigned x_axis      = 2;
+      unsigned y_axis      = 3;
+
+      /* 0/1 are the left analog X/Y axes */
+      if (AXIS_POS_GET(joyaxis) == AXIS_DIR_NONE)
+      {
+         /* current axis is negative         */
+         /* current stick is the left        */
+         if (AXIS_NEG_GET(joyaxis) < 2)
+         {
+            x_axis = 0;
+            y_axis = 1;
+         }
+      }
+      else
+      {
+         /* current axis is positive */
+         /* current stick is the left */
+         if (AXIS_POS_GET(joyaxis) < 2)
+         {
+            x_axis = 0;
+            y_axis = 1;
+         }
+      }
+
+      x                = drv->axis(port, AXIS_POS(x_axis))
+         + drv->axis(port, AXIS_NEG(x_axis));
+      y                = drv->axis(port, AXIS_POS(y_axis))
+         + drv->axis(port, AXIS_NEG(y_axis));
+      normal_mag       = (1.0f / 0x7fff) * sqrt(x * x + y * y);
+
+      /* if analog value is below the deadzone, ignore it */
+      if (normal_mag <= input_analog_deadzone)
+         return 0;
+
+      normalized = (1.0f / 0x7fff) * val;
+
+      /* now scale the "good" analog range appropriately, 
+       * so we don't start out way above 0 */
+      val = 0x7fff * normalized * MIN(1.0f, 
+         ((normal_mag - input_analog_deadzone) 
+          / (1.0f - input_analog_deadzone)));
+   }
+
+   if (input_analog_sensitivity != 1.0f)
+   {
+      float normalized = (1.0f / 0x7fff) * val;
+      int      new_val = 0x7fff * normalized  * 
+         input_analog_sensitivity;
+
+      if (new_val > 0x7fff)
+         new_val = 0x7fff;
+      else if (new_val < -0x7fff)
+         new_val = -0x7fff;
+
+      return new_val;
+   }
+
+   return val;
+}
+
 #ifdef HAVE_MENU
 
 /**
@@ -984,8 +1060,7 @@ void input_menu_keys_pressed(void *data, input_bits_t *p_new_state)
             {
                if (joykey == NO_BTN || !sec->button(joypad_info.joy_idx, joykey))
                {
-                  int16_t  axis        = sec->axis(joypad_info.joy_idx, joyaxis);
-                  float    scaled_axis = (float)abs(axis) / 0x8000;
+                  float    scaled_axis = sec->axis ? ((float)abs(input_joypad_axis(sec, joypad_info.joy_idx, joyaxis)) / 0x8000) : 0.0;
                   bit_pressed          = scaled_axis > joypad_info.axis_threshold;
                }
                else
@@ -996,8 +1071,7 @@ void input_menu_keys_pressed(void *data, input_bits_t *p_new_state)
             {
                if (joykey == NO_BTN || !first->button(joypad_info.joy_idx, joykey))
                {
-                  int16_t  axis        = first->axis(joypad_info.joy_idx, joyaxis);
-                  float    scaled_axis = (float)abs(axis) / 0x8000;
+                  float    scaled_axis = first->axis ? ((float)abs(input_joypad_axis(first, joypad_info.joy_idx, joyaxis)) / 0x8000) : 0.0;
                   bit_pressed          = scaled_axis > joypad_info.axis_threshold;
                }
                else
@@ -1009,10 +1083,7 @@ void input_menu_keys_pressed(void *data, input_bits_t *p_new_state)
          }
       }
 
-      if (!bit_pressed)
-         bit_pressed = input_keys_pressed_iterate(i, p_new_state);
-
-      if (bit_pressed)
+      if (bit_pressed || input_keys_pressed_iterate(i, p_new_state))
       {
          BIT256_SET_PTR(p_new_state, i);
       }
@@ -1026,10 +1097,13 @@ void input_menu_keys_pressed(void *data, input_bits_t *p_new_state)
 
    if (!menu_input_dialog_get_display_kb())
    {
-      unsigned ids[15][2];
+      unsigned ids[18][2];
       const struct retro_keybind *quitkey = &input_config_binds[0][RARCH_QUIT_KEY];
       const struct retro_keybind *fskey   = &input_config_binds[0][RARCH_FULLSCREEN_TOGGLE_KEY];
       const struct retro_keybind *companionkey = &input_config_binds[0][RARCH_UI_COMPANION_TOGGLE];
+      const struct retro_keybind *fpskey = &input_config_binds[0][RARCH_FPS_TOGGLE];
+      const struct retro_keybind *debugkey = &input_config_binds[0][RARCH_SEND_DEBUG_INFO];
+      const struct retro_keybind *netplaykey = &input_config_binds[0][RARCH_NETPLAY_HOST_TOGGLE];
 
       ids[0][0]  = RETROK_SPACE;
       ids[0][1]  = RETRO_DEVICE_ID_JOYPAD_START;
@@ -1061,6 +1135,12 @@ void input_menu_keys_pressed(void *data, input_bits_t *p_new_state)
       ids[13][1] = RETRO_DEVICE_ID_JOYPAD_Y;
       ids[14][0] = companionkey->key;
       ids[14][1] = RARCH_UI_COMPANION_TOGGLE;
+      ids[15][0] = fpskey->key;
+      ids[15][1] = RARCH_FPS_TOGGLE;
+      ids[16][0] = debugkey->key;
+      ids[16][1] = RARCH_SEND_DEBUG_INFO;
+      ids[17][0] = netplaykey->key;
+      ids[17][1] = RARCH_NETPLAY_HOST_TOGGLE;
 
       if (settings->bools.input_menu_swap_ok_cancel_buttons)
       {
@@ -1068,7 +1148,7 @@ void input_menu_keys_pressed(void *data, input_bits_t *p_new_state)
          ids[12][1] = RETRO_DEVICE_ID_JOYPAD_B;
       }
 
-      for (i = 0; i < 15; i++)
+      for (i = 0; i < 18; i++)
       {
          if (current_input->input_state(current_input_data,
                   joypad_info, binds, 0,
@@ -1152,20 +1232,15 @@ void input_keys_pressed(void *data, input_bits_t *p_new_state)
 
    for (i = 0; i < RARCH_BIND_LIST_END; i++)
    {
-      bool bit_pressed = false;
-
-      if (
-            ((!input_driver_block_libretro_input && ((i < RARCH_FIRST_META_KEY)))
-             || !input_driver_block_hotkey) &&
-            binds[i].valid && current_input->input_state(current_input_data,
+      bool bit_pressed = (
+            (!input_driver_block_libretro_input && ((i < RARCH_FIRST_META_KEY)))
+            || !input_driver_block_hotkey)
+         &&
+         binds[i].valid && current_input->input_state(current_input_data,
                joypad_info, &binds,
-               0, RETRO_DEVICE_JOYPAD, 0, i)
-         )
-         bit_pressed = true;
-      else if (input_keys_pressed_iterate(i, p_new_state))
-         bit_pressed = true;
-
-      if (bit_pressed)
+               0, RETRO_DEVICE_JOYPAD, 0, i);
+      
+      if (bit_pressed || input_keys_pressed_iterate(i, p_new_state))
       {
          BIT256_SET_PTR(p_new_state, i);
       }
@@ -1188,18 +1263,18 @@ void input_get_state_for_port(void *data, unsigned port, input_bits_t *p_new_sta
 
    for (i = 0; i < RARCH_FIRST_CUSTOM_BIND; i++)
    {
-      bool bit_pressed = false;
-      int16_t val;
-      val = input_joypad_analog(joypad_driver, joypad_info, port, RETRO_DEVICE_INDEX_ANALOG_BUTTON, i, libretro_input_binds[port]);
-
       if (input_driver_input_state(joypad_info, libretro_input_binds,
                port, RETRO_DEVICE_JOYPAD, 0, i) != 0)
-         bit_pressed = true;
+      {
+         int16_t      val = input_joypad_analog(
+               joypad_driver, joypad_info, port,
+               RETRO_DEVICE_INDEX_ANALOG_BUTTON, i, libretro_input_binds[port]);
 
-      if (bit_pressed)
          BIT256_SET_PTR(p_new_state, i);
-      if (bit_pressed && val)
-         p_new_state->analog_buttons[i] = val;
+
+         if (val)
+            p_new_state->analog_buttons[i] = val;
+      }
    }
 
    for (i = 0; i < 2; i++)
@@ -1267,7 +1342,6 @@ void input_driver_destroy(void)
    input_driver_block_libretro_input     = false;
    input_driver_nonblock_state           = false;
    input_driver_flushing_input           = false;
-   input_driver_data_own                 = false;
    memset(&input_driver_turbo_btns, 0, sizeof(turbo_buttons_t));
    current_input                         = NULL;
 }
@@ -1367,21 +1441,6 @@ void input_driver_unset_nonblock_state(void)
 bool input_driver_is_nonblock_state(void)
 {
    return input_driver_nonblock_state;
-}
-
-void input_driver_set_own_driver(void)
-{
-   input_driver_data_own = true;
-}
-
-void input_driver_unset_own_driver(void)
-{
-   input_driver_data_own = false;
-}
-
-bool input_driver_owns_driver(void)
-{
-   return input_driver_data_own;
 }
 
 bool input_driver_init_command(void)
@@ -1627,23 +1686,6 @@ const input_device_driver_t *input_joypad_init_first(void *data)
 }
 
 /**
- * input_joypad_name:
- * @drv                     : Input device driver handle.
- * @port                    : Joystick number.
- *
- * Gets name of the joystick (@port).
- *
- * Returns: name of joystick #port.
- **/
-const char *input_joypad_name(const input_device_driver_t *drv,
-      unsigned port)
-{
-   if (!drv)
-      return NULL;
-   return drv->name(port);
-}
-
-/**
  * input_joypad_set_rumble:
  * @drv                     : Input device driver handle.
  * @port                    : User number.
@@ -1657,12 +1699,10 @@ const char *input_joypad_name(const input_device_driver_t *drv,
 bool input_joypad_set_rumble(const input_device_driver_t *drv,
       unsigned port, enum retro_rumble_effect effect, uint16_t strength)
 {
-   unsigned joy_idx     = 0;
+   settings_t *settings = config_get_ptr();
+   unsigned joy_idx     = settings->uints.input_joypad_map[port];
 
-   if (!input_config_get_bind_idx(port, &joy_idx))
-      return false;
-
-   if (!drv || !drv->set_rumble)
+   if (!drv || !drv->set_rumble || joy_idx >= MAX_USERS)
       return false;
 
    return drv->set_rumble(joy_idx, effect, strength);
@@ -1692,43 +1732,40 @@ int16_t input_joypad_analog(const input_device_driver_t *drv,
       unsigned port, unsigned idx, unsigned ident,
       const struct retro_keybind *binds)
 {
-   int16_t res;
+   int16_t res = 0;
 
-   if ( idx == RETRO_DEVICE_INDEX_ANALOG_BUTTON )
+   if (idx == RETRO_DEVICE_INDEX_ANALOG_BUTTON)
    {
-      /* A RETRO_DEVICE_JOYPAD button? */
-      if ( ident < RARCH_FIRST_CUSTOM_BIND )
+      /* A RETRO_DEVICE_JOYPAD button?
+       * Otherwise, not a suitable button */
+      if (ident < RARCH_FIRST_CUSTOM_BIND)
       {
          uint32_t axis = 0;
-         const struct retro_keybind *bind = NULL;
+         const struct retro_keybind *bind = &binds[ ident ];
 
-         bind = &binds[ ident ];
          if (!bind->valid)
             return 0;
 
-         axis = bind->joyaxis;
-         if ( axis == AXIS_NONE )
-            axis = joypad_info.auto_binds[ ident ].joyaxis;
+         axis = (bind->joyaxis == AXIS_NONE) 
+            ? joypad_info.auto_binds[ident].joyaxis
+            : bind->joyaxis;
 
          /* Analog button. */
-         res = abs( drv->axis( joypad_info.joy_idx, axis ) );
+         /* no deadzone/sensitivity correction for analog buttons currently */
+         if (drv->axis)
+            res = abs(drv->axis(joypad_info.joy_idx, axis));
 
-         /* If the result is zero, it's got a digital button attached to it */
-         if ( res == 0 )
+         /* If the result is zero, it's got a digital button 
+          * attached to it instead */
+         if (res == 0)
          {
-            uint16_t key = bind->joykey;
+            uint16_t key = (bind->joykey == NO_BTN) 
+               ? joypad_info.auto_binds[ident].joykey
+               : bind->joykey;
 
-            if ( key == NO_BTN )
-               key = joypad_info.auto_binds[ ident ].joykey;
-
-            if ( drv->button(joypad_info.joy_idx, key))
+            if (drv->button(joypad_info.joy_idx, key))
                res = 0x7fff;
          }
-      }
-      else
-      {
-         /* not a suitable button */
-         res = 0;
       }
    }
    else
@@ -1736,8 +1773,6 @@ int16_t input_joypad_analog(const input_device_driver_t *drv,
       /* Analog sticks. Either RETRO_DEVICE_INDEX_ANALOG_LEFT
        * or RETRO_DEVICE_INDEX_ANALOG_RIGHT */
 
-      uint32_t axis_minus, axis_plus;
-      int16_t  pressed_minus, pressed_plus;
       unsigned ident_minus                   = 0;
       unsigned ident_plus                    = 0;
       const struct retro_keybind *bind_minus = NULL;
@@ -1751,89 +1786,41 @@ int16_t input_joypad_analog(const input_device_driver_t *drv,
       if (!bind_minus->valid || !bind_plus->valid)
          return 0;
 
-      axis_minus    = bind_minus->joyaxis;
-      axis_plus     = bind_plus->joyaxis;
-
-      if (axis_minus == AXIS_NONE)
-         axis_minus = joypad_info.auto_binds[ident_minus].joyaxis;
-      if (axis_plus == AXIS_NONE)
-         axis_plus  = joypad_info.auto_binds[ident_plus].joyaxis;
-
-      pressed_minus = abs(drv->axis(joypad_info.joy_idx, axis_minus));
-      pressed_plus  = abs(drv->axis(joypad_info.joy_idx, axis_plus));
-      res           = pressed_plus - pressed_minus;
+      if (drv->axis)
+      {
+         uint32_t axis_minus    = (bind_minus->joyaxis == AXIS_NONE) 
+            ? joypad_info.auto_binds[ident_minus].joyaxis 
+            : bind_minus->joyaxis;
+         uint32_t axis_plus     = (bind_plus->joyaxis  == AXIS_NONE) 
+            ? joypad_info.auto_binds[ident_plus].joyaxis  
+            : bind_plus->joyaxis;
+         int16_t  pressed_minus = abs(
+               input_joypad_axis(drv, joypad_info.joy_idx,
+                  axis_minus));
+         int16_t pressed_plus  = abs(
+               input_joypad_axis(drv, joypad_info.joy_idx,
+                  axis_plus));
+         res                   = pressed_plus - pressed_minus;
+      }
 
       if (res == 0)
       {
-         int16_t digital_left  = 0;
-         int16_t digital_right = 0;
-         uint16_t key_minus    = bind_minus->joykey;
-         uint16_t key_plus     = bind_plus->joykey;
-
-         if (key_minus == NO_BTN)
-            key_minus = joypad_info.auto_binds[ident_minus].joykey;
-         if (key_plus == NO_BTN)
-            key_plus = joypad_info.auto_binds[ident_plus].joykey;
-
-         if (drv->button(joypad_info.joy_idx, key_minus))
-            digital_left  = -0x7fff;
-         if (drv->button(joypad_info.joy_idx, key_plus))
-            digital_right = 0x7fff;
+         uint16_t key_minus    = (bind_minus->joykey == NO_BTN) 
+            ? joypad_info.auto_binds[ident_minus].joykey 
+            : bind_minus->joykey;
+         uint16_t key_plus     = (bind_plus->joykey  == NO_BTN) 
+            ? joypad_info.auto_binds[ident_plus].joykey  
+            : bind_plus->joykey;
+         int16_t digital_left  = drv->button(joypad_info.joy_idx, key_minus) 
+            ? -0x7fff : 0;
+         int16_t digital_right = drv->button(joypad_info.joy_idx, key_plus)  
+            ? 0x7fff  : 0;
 
          return digital_right + digital_left;
       }
    }
 
    return res;
-}
-
-/**
- * input_joypad_axis_raw:
- * @drv                     : Input device driver handle.
- * @port                    : Joystick number.
- * @axis                    : Identifier of axis.
- *
- * Checks if axis (@axis) was being pressed by user
- * with joystick number @port.
- *
- * Returns: true (1) if axis was pressed, otherwise
- * false (0).
- **/
-int16_t input_joypad_axis_raw(const input_device_driver_t *drv,
-      unsigned port, unsigned axis)
-{
-   if (!drv)
-      return 0;
-   return drv->axis(port, AXIS_POS(axis)) +
-      drv->axis(port, AXIS_NEG(axis));
-}
-
-/**
- * input_joypad_button_raw:
- * @drv                     : Input device driver handle.
- * @port                    : Joystick number.
- * @button                  : Identifier of key.
- *
- * Checks if key (@button) was being pressed by user
- * with joystick number @port.
- *
- * Returns: true (1) if key was pressed, otherwise
- * false (0).
- **/
-bool input_joypad_button_raw(const input_device_driver_t *drv,
-      unsigned port, unsigned button)
-{
-   if (!drv)
-      return false;
-   return drv->button(port, button);
-}
-
-bool input_joypad_hat_raw(const input_device_driver_t *drv,
-      unsigned port, unsigned hat_dir, unsigned hat)
-{
-   if (!drv)
-      return false;
-   return drv->button(port, HAT_MAP(hat, hat_dir));
 }
 
 /**
@@ -1849,22 +1836,19 @@ bool input_joypad_hat_raw(const input_device_driver_t *drv,
  **/
 bool input_mouse_button_raw(unsigned port, unsigned id)
 {
-   int16_t res;
    rarch_joypad_info_t joypad_info;
    settings_t *settings = config_get_ptr();
 
    /*ignore axes*/
-   if ( id == RETRO_DEVICE_ID_MOUSE_X || id == RETRO_DEVICE_ID_MOUSE_Y )
+   if (id == RETRO_DEVICE_ID_MOUSE_X || id == RETRO_DEVICE_ID_MOUSE_Y)
       return false;
 
    joypad_info.axis_threshold = input_driver_axis_threshold;
    joypad_info.joy_idx        = settings->uints.input_joypad_map[port];
    joypad_info.auto_binds     = input_autoconf_binds[joypad_info.joy_idx];
 
-   res = current_input->input_state(current_input_data,
-         joypad_info, libretro_input_binds, port, RETRO_DEVICE_MOUSE, 0, id);
-
-   if (res)
+   if (current_input->input_state(current_input_data,
+         joypad_info, libretro_input_binds, port, RETRO_DEVICE_MOUSE, 0, id))
       return true;
    return false;
 }
@@ -2303,12 +2287,9 @@ bool input_keyboard_ctl(enum rarch_input_keyboard_ctl_state state, void *data)
    return true;
 }
 
-static const void *input_config_bind_map_get(unsigned i)
-{
-   return (const struct input_bind_map*)&input_config_bind_map[i];
-}
+#define input_config_bind_map_get(i) ((const struct input_bind_map*)&input_config_bind_map[(i)])
 
-bool input_config_bind_map_get_valid(unsigned i)
+static bool input_config_bind_map_get_valid(unsigned i)
 {
    const struct input_bind_map *keybind =
       (const struct input_bind_map*)input_config_bind_map_get(i);
@@ -2344,13 +2325,13 @@ const char *input_config_bind_map_get_desc(unsigned i)
    return msg_hash_to_str(keybind->desc);
 }
 
-void input_config_parse_key(void *data,
+static void input_config_parse_key(
+      config_file_t *conf,
       const char *prefix, const char *btn,
       struct retro_keybind *bind)
 {
    char tmp[64];
    char key[64];
-   config_file_t *conf = (config_file_t*)data;
 
    tmp[0] = key[0] = '\0';
 
@@ -2360,7 +2341,7 @@ void input_config_parse_key(void *data,
       bind->key = input_config_translate_str_to_rk(tmp);
 }
 
-const char *input_config_get_prefix(unsigned user, bool meta)
+static const char *input_config_get_prefix(unsigned user, bool meta)
 {
    static const char *bind_user_prefix[MAX_USERS] = {
       "input_player1",
@@ -2392,20 +2373,6 @@ const char *input_config_get_prefix(unsigned user, bool meta)
    return NULL;
 }
 
-static enum retro_key find_rk_bind(const char *str)
-{
-   size_t i;
-
-   for (i = 0; input_config_key_map[i].str; i++)
-   {
-      if (string_is_equal_noncase(input_config_key_map[i].str, str))
-         return input_config_key_map[i].key;
-   }
-
-   RARCH_WARN("Key name %s not found.\n", str);
-   return RETROK_UNKNOWN;
-}
-
 /**
  * input_config_translate_str_to_rk:
  * @str                            : String to translate to key ID.
@@ -2416,9 +2383,17 @@ static enum retro_key find_rk_bind(const char *str)
  **/
 enum retro_key input_config_translate_str_to_rk(const char *str)
 {
+   size_t i;
    if (strlen(str) == 1 && isalpha((int)*str))
       return (enum retro_key)(RETROK_a + (tolower((int)*str) - (int)'a'));
-   return find_rk_bind(str);
+   for (i = 0; input_config_key_map[i].str; i++)
+   {
+      if (string_is_equal_noncase(input_config_key_map[i].str, str))
+         return input_config_key_map[i].key;
+   }
+
+   RARCH_WARN("Key name %s not found.\n", str);
+   return RETROK_UNKNOWN;
 }
 
 /**
@@ -2466,7 +2441,8 @@ static void parse_hat(struct retro_keybind *bind, const char *str)
       bind->joykey = HAT_MAP(hat, hat_dir);
 }
 
-void input_config_parse_joy_button(void *data, const char *prefix,
+static void input_config_parse_joy_button(
+      config_file_t *conf, const char *prefix,
       const char *btn, struct retro_keybind *bind)
 {
    char str[256];
@@ -2474,7 +2450,6 @@ void input_config_parse_joy_button(void *data, const char *prefix,
    char key[64];
    char key_label[64];
    char *tmp_a              = NULL;
-   config_file_t *conf      = (config_file_t*)data;
 
    str[0] = tmp[0] = key[0] = key_label[0] = '\0';
 
@@ -2513,7 +2488,8 @@ void input_config_parse_joy_button(void *data, const char *prefix,
    }
 }
 
-void input_config_parse_joy_axis(void *data, const char *prefix,
+static void input_config_parse_joy_axis(
+      config_file_t *conf, const char *prefix,
       const char *axis, struct retro_keybind *bind)
 {
    char str[256];
@@ -2521,7 +2497,6 @@ void input_config_parse_joy_axis(void *data, const char *prefix,
    char       key[64];
    char key_label[64];
    char        *tmp_a       = NULL;
-   config_file_t *conf      = (config_file_t*)data;
 
    str[0] = tmp[0] = key[0] = key_label[0] = '\0';
 
@@ -2559,14 +2534,14 @@ void input_config_parse_joy_axis(void *data, const char *prefix,
    }
 }
 
-void input_config_parse_mouse_button(void *data, const char *prefix,
+static void input_config_parse_mouse_button(
+      config_file_t *conf, const char *prefix,
       const char *btn, struct retro_keybind *bind)
 {
    int val;
    char str[256];
    char tmp[64];
    char key[64];
-   config_file_t *conf      = (config_file_t*)data;
 
    str[0] = tmp[0] = key[0] = '\0';
 
@@ -2575,13 +2550,13 @@ void input_config_parse_mouse_button(void *data, const char *prefix,
    fill_pathname_join_delim(key, str,
          "mbtn", '_', sizeof(key));
 
-   if ( bind && config_get_array(conf, key, tmp, sizeof(tmp)) )
+   if (bind && config_get_array(conf, key, tmp, sizeof(tmp)))
    {
       bind->mbutton = NO_BTN;
 
-      if ( tmp[0]=='w' )
+      if (tmp[0]=='w')
       {
-         switch ( tmp[1] )
+         switch (tmp[1])
          {
             case 'u':
                bind->mbutton = RETRO_DEVICE_ID_MOUSE_WHEELUP;
@@ -2590,7 +2565,7 @@ void input_config_parse_mouse_button(void *data, const char *prefix,
                bind->mbutton = RETRO_DEVICE_ID_MOUSE_WHEELDOWN;
                break;
             case 'h':
-               switch ( tmp[2] )
+               switch (tmp[2])
                {
                   case 'u':
                      bind->mbutton = RETRO_DEVICE_ID_MOUSE_HORIZ_WHEELUP;
@@ -2605,7 +2580,7 @@ void input_config_parse_mouse_button(void *data, const char *prefix,
       else
       {
          val = atoi(tmp);
-         switch ( val )
+         switch (val)
          {
             case 1:
                bind->mbutton = RETRO_DEVICE_ID_MOUSE_LEFT;
@@ -2743,10 +2718,10 @@ void input_config_get_bind_string(char *buf, const struct retro_keybind *bind,
    }
 #endif
 
-   if ( bind->mbutton != NO_BTN )
+   if (bind->mbutton != NO_BTN)
    {
       int tag = 0;
-      switch ( bind->mbutton )
+      switch (bind->mbutton)
       {
          case RETRO_DEVICE_ID_MOUSE_LEFT:
             tag = MENU_ENUM_LABEL_VALUE_INPUT_MOUSE_LEFT;
@@ -2775,7 +2750,7 @@ void input_config_get_bind_string(char *buf, const struct retro_keybind *bind,
          case RETRO_DEVICE_ID_MOUSE_HORIZ_WHEELDOWN:
             tag = MENU_ENUM_LABEL_VALUE_INPUT_MOUSE_HORIZ_WHEEL_DOWN;
             break;
-      } /* switch ( bind->mbutton ) */
+      }
 
       if (tag != 0)
       {
@@ -2786,17 +2761,17 @@ void input_config_get_bind_string(char *buf, const struct retro_keybind *bind,
    }
 
    /*completely empty?*/
-   if ( *buf == '\0' )
+   if (*buf == '\0')
       strlcat(buf, "---", size);
 }
 
-unsigned input_config_get_device_count()
+unsigned input_config_get_device_count(void)
 {
    unsigned num_devices;
-   for ( num_devices = 0; num_devices < MAX_INPUT_DEVICES; ++num_devices )
+   for (num_devices = 0; num_devices < MAX_INPUT_DEVICES; ++num_devices)
    {
       const char *device_name = input_config_get_device_name(num_devices);
-      if ( string_is_empty(device_name) )
+      if (string_is_empty(device_name))
          break;
    }
    return num_devices;
@@ -2816,6 +2791,13 @@ const char *input_config_get_device_display_name(unsigned port)
    return input_device_display_names[port];
 }
 
+const char *input_config_get_device_config_path(unsigned port)
+{
+   if (string_is_empty(input_device_config_paths[port]))
+      return NULL;
+   return input_device_config_paths[port];
+}
+
 const char *input_config_get_device_config_name(unsigned port)
 {
    if (string_is_empty(input_device_config_names[port]))
@@ -2825,34 +2807,45 @@ const char *input_config_get_device_config_name(unsigned port)
 
 void input_config_set_device_name(unsigned port, const char *name)
 {
-   if (!string_is_empty(name))
-   {
-      strlcpy(input_device_names[port],
-            name,
-            sizeof(input_device_names[port]));
+   if (string_is_empty(name))
+      return;
 
-      input_autoconfigure_joypad_reindex_devices();
-   }
+   strlcpy(input_device_names[port],
+         name,
+         sizeof(input_device_names[port]));
+
+   input_autoconfigure_joypad_reindex_devices();
+}
+
+void input_config_set_device_config_path(unsigned port, const char *path)
+{
+   if (string_is_empty(path))
+      return;
+
+   fill_pathname_parent_dir_name(input_device_config_paths[port],
+         path, sizeof(input_device_config_paths[port]));
+   strlcat(input_device_config_paths[port],
+         "/",
+         sizeof(input_device_config_paths[port]));
+   strlcat(input_device_config_paths[port],
+         path_basename(path),
+         sizeof(input_device_config_paths[port]));
 }
 
 void input_config_set_device_config_name(unsigned port, const char *name)
 {
    if (!string_is_empty(name))
-   {
       strlcpy(input_device_config_names[port],
             name,
             sizeof(input_device_config_names[port]));
-   }
 }
 
 void input_config_set_device_display_name(unsigned port, const char *name)
 {
    if (!string_is_empty(name))
-   {
       strlcpy(input_device_display_names[port],
             name,
             sizeof(input_device_display_names[port]));
-   }
 }
 
 void input_config_clear_device_name(unsigned port)
@@ -2864,6 +2857,11 @@ void input_config_clear_device_name(unsigned port)
 void input_config_clear_device_display_name(unsigned port)
 {
    input_device_display_names[port][0] = '\0';
+}
+
+void input_config_clear_device_config_path(unsigned port)
+{
+   input_device_config_paths[port][0] = '\0';
 }
 
 void input_config_clear_device_config_name(unsigned port)
@@ -2891,17 +2889,6 @@ void input_config_set_device(unsigned port, unsigned id)
       settings->uints.input_libretro_device[port] = id;
 }
 
-bool input_config_get_bind_idx(unsigned port, unsigned *joy_idx_real)
-{
-   settings_t *settings = config_get_ptr();
-   unsigned joy_idx     = settings->uints.input_joypad_map[port];
-
-   if (joy_idx >= MAX_USERS)
-      return false;
-
-   *joy_idx_real        = joy_idx;
-   return true;
-}
 
 const struct retro_keybind *input_config_get_bind_auto(
       unsigned port, unsigned id)
@@ -2956,4 +2943,260 @@ void input_config_reset(void)
       for (j = 0; j < 64; j++)
          input_device_names[i][j] = 0;
    }
+}
+
+void config_read_keybinds_conf(void *data)
+{
+   unsigned i;
+   config_file_t *conf = (config_file_t*)data;
+
+   if (!conf)
+      return;
+
+   for (i = 0; i < MAX_USERS; i++)
+   {
+      unsigned j;
+
+      for (j = 0; input_config_bind_map_get_valid(j); j++)
+      {
+         struct retro_keybind *bind = &input_config_binds[i][j];
+         const char *prefix         = input_config_get_prefix(i, input_config_bind_map_get_meta(j));
+         const char *btn            = input_config_bind_map_get_base(j);
+
+         if (!bind->valid)
+            continue;
+         if (!input_config_bind_map_get_valid(j))
+            continue;
+         if (!btn || !prefix)
+            continue;
+
+         input_config_parse_key(conf, prefix, btn, bind);
+         input_config_parse_joy_button(conf, prefix, btn, bind);
+         input_config_parse_joy_axis(conf, prefix, btn, bind);
+         input_config_parse_mouse_button(conf, prefix, btn, bind);
+      }
+   }
+}
+
+void input_autoconfigure_joypad_conf(void *data,
+      struct retro_keybind *binds)
+{
+   unsigned i;
+   config_file_t *conf = (config_file_t*)data;
+
+   if (!conf)
+      return;
+
+   for (i = 0; i < RARCH_BIND_LIST_END; i++)
+   {
+      input_config_parse_joy_button(conf, "input",
+            input_config_bind_map_get_base(i), &binds[i]);
+      input_config_parse_joy_axis(conf, "input",
+            input_config_bind_map_get_base(i), &binds[i]);
+   }
+}
+
+/**
+ * input_config_save_keybinds_user:
+ * @conf               : pointer to config file object
+ * @user               : user number
+ *
+ * Save the current keybinds of a user (@user) to the config file (@conf).
+ */
+void input_config_save_keybinds_user(void *data, unsigned user)
+{
+   unsigned i = 0;
+   config_file_t *conf = (config_file_t*)data;
+
+   for (i = 0; input_config_bind_map_get_valid(i); i++)
+   {
+      char key[64];
+      char btn[64];
+      const char *prefix               = input_config_get_prefix(user,
+            input_config_bind_map_get_meta(i));
+      const struct retro_keybind *bind = &input_config_binds[user][i];
+      const char                 *base = input_config_bind_map_get_base(i);
+
+      if (!prefix || !bind->valid)
+         continue;
+
+      key[0] = btn[0]  = '\0';
+
+      fill_pathname_join_delim(key, prefix, base, '_', sizeof(key));
+
+      input_keymaps_translate_rk_to_str(bind->key, btn, sizeof(btn));
+      config_set_string(conf, key, btn);
+
+      input_config_save_keybind(conf, prefix, base, bind, true);
+   }
+}
+
+static void save_keybind_hat(config_file_t *conf, const char *key,
+      const struct retro_keybind *bind)
+{
+   char config[16];
+   unsigned hat     = (unsigned)GET_HAT(bind->joykey);
+   const char *dir  = NULL;
+
+   config[0]        = '\0';
+
+   switch (GET_HAT_DIR(bind->joykey))
+   {
+      case HAT_UP_MASK:
+         dir = "up";
+         break;
+
+      case HAT_DOWN_MASK:
+         dir = "down";
+         break;
+
+      case HAT_LEFT_MASK:
+         dir = "left";
+         break;
+
+      case HAT_RIGHT_MASK:
+         dir = "right";
+         break;
+
+      default:
+         break;
+   }
+
+   snprintf(config, sizeof(config), "h%u%s", hat, dir);
+   config_set_string(conf, key, config);
+}
+
+static void save_keybind_joykey(config_file_t *conf,
+      const char *prefix,
+      const char *base,
+      const struct retro_keybind *bind, bool save_empty)
+{
+   char key[64];
+
+   key[0] = '\0';
+
+   fill_pathname_join_delim_concat(key, prefix,
+         base, '_', "_btn", sizeof(key));
+
+   if (bind->joykey == NO_BTN)
+   {
+       if (save_empty)
+         config_set_string(conf, key, file_path_str(FILE_PATH_NUL));
+   }
+   else if (GET_HAT_DIR(bind->joykey))
+      save_keybind_hat(conf, key, bind);
+   else
+      config_set_uint64(conf, key, bind->joykey);
+}
+
+static void save_keybind_axis(config_file_t *conf,
+      const char *prefix,
+      const char *base,
+      const struct retro_keybind *bind, bool save_empty)
+{
+   char key[64];
+   unsigned axis   = 0;
+   char dir        = '\0';
+
+   key[0] = '\0';
+
+   fill_pathname_join_delim_concat(key,
+         prefix, base, '_',
+         "_axis",
+         sizeof(key));
+
+   if (bind->joyaxis == AXIS_NONE)
+   {
+      if (save_empty)
+         config_set_string(conf, key, file_path_str(FILE_PATH_NUL));
+   }
+   else if (AXIS_NEG_GET(bind->joyaxis) != AXIS_DIR_NONE)
+   {
+      dir = '-';
+      axis = AXIS_NEG_GET(bind->joyaxis);
+   }
+   else if (AXIS_POS_GET(bind->joyaxis) != AXIS_DIR_NONE)
+   {
+      dir = '+';
+      axis = AXIS_POS_GET(bind->joyaxis);
+   }
+
+   if (dir)
+   {
+      char config[16];
+
+      config[0] = '\0';
+
+      snprintf(config, sizeof(config), "%c%u", dir, axis);
+      config_set_string(conf, key, config);
+   }
+}
+
+static void save_keybind_mbutton(config_file_t *conf,
+      const char *prefix,
+      const char *base,
+      const struct retro_keybind *bind, bool save_empty)
+{
+   char key[64];
+
+   key[0] = '\0';
+
+   fill_pathname_join_delim_concat(key, prefix,
+      base, '_', "_mbtn", sizeof(key));
+
+   switch (bind->mbutton)
+   {
+      case RETRO_DEVICE_ID_MOUSE_LEFT:
+         config_set_uint64(conf, key, 1);
+         break;
+      case RETRO_DEVICE_ID_MOUSE_RIGHT:
+         config_set_uint64(conf, key, 2);
+         break;
+      case RETRO_DEVICE_ID_MOUSE_MIDDLE:
+         config_set_uint64(conf, key, 3);
+         break;
+      case RETRO_DEVICE_ID_MOUSE_BUTTON_4:
+         config_set_uint64(conf, key, 4);
+         break;
+      case RETRO_DEVICE_ID_MOUSE_BUTTON_5:
+         config_set_uint64(conf, key, 5);
+         break;
+      case RETRO_DEVICE_ID_MOUSE_WHEELUP:
+         config_set_string(conf, key, "wu");
+         break;
+      case RETRO_DEVICE_ID_MOUSE_WHEELDOWN:
+         config_set_string(conf, key, "wd");
+         break;
+      case RETRO_DEVICE_ID_MOUSE_HORIZ_WHEELUP:
+         config_set_string(conf, key, "whu");
+         break;
+      case RETRO_DEVICE_ID_MOUSE_HORIZ_WHEELDOWN:
+         config_set_string(conf, key, "whd");
+         break;
+      default:
+         if (save_empty)
+            config_set_string(conf, key, file_path_str(FILE_PATH_NUL));
+         break;
+   }
+}
+
+/**
+ * input_config_save_keybind:
+ * @conf               : pointer to config file object
+ * @prefix             : prefix name of keybind
+ * @base               : base name   of keybind
+ * @bind               : pointer to key binding object
+ * @kb                 : save keyboard binds
+ *
+ * Save a key binding to the config file.
+ */
+void input_config_save_keybind(void *data, const char *prefix,
+      const char *base, const struct retro_keybind *bind,
+      bool save_empty)
+{
+   config_file_t *conf = (config_file_t*)data;
+
+   save_keybind_joykey (conf, prefix, base, bind, save_empty);
+   save_keybind_axis   (conf, prefix, base, bind, save_empty);
+   save_keybind_mbutton(conf, prefix, base, bind, save_empty);
 }

@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -29,6 +29,10 @@
 #include <shlobj.h>
 #ifdef COBJMACROS_DEFINED
 #undef COBJMACROS
+#endif
+
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0601 /* Windows 7 */
 #endif
 
 #include "../video_display_server.h"
@@ -116,7 +120,7 @@ static void win32_display_server_destroy(void *data)
 
    if (win32_orig_width > 0 && win32_orig_height > 0)
       video_display_server_set_resolution(win32_orig_width, win32_orig_height,
-            win32_orig_refresh, (float)win32_orig_refresh, crt_center, 0);
+            win32_orig_refresh, (float)win32_orig_refresh, crt_center, 0, 0);
 
 #ifdef HAS_TASKBAR_EXT
    if (g_taskbarList)
@@ -210,7 +214,7 @@ static bool win32_display_server_set_window_decorations(void *data, bool on)
 }
 
 static bool win32_display_server_set_resolution(void *data,
-      unsigned width, unsigned height, int int_hz, float hz, int center, int monitor_index)
+      unsigned width, unsigned height, int int_hz, float hz, int center, int monitor_index, int xoffset)
 {
    DEVMODE curDevmode;
    int iModeNum;
@@ -328,9 +332,9 @@ void *win32_display_server_get_resolution_list(void *data,
       if (!win32_get_video_output(&dm, i, sizeof(dm)))
          break;
 
-      conf[i].width       = dm.dmPelsWidth; 
-      conf[i].height      = dm.dmPelsHeight; 
-      conf[i].bpp         = dm.dmBitsPerPel; 
+      conf[i].width       = dm.dmPelsWidth;
+      conf[i].height      = dm.dmPelsHeight;
+      conf[i].bpp         = dm.dmBitsPerPel;
       conf[i].refreshrate = dm.dmDisplayFrequency;
       conf[i].idx         = i;
       conf[i].current     = false;
@@ -346,6 +350,114 @@ void *win32_display_server_get_resolution_list(void *data,
    return conf;
 }
 
+#if _WIN32_WINNT >= 0x0500
+enum rotation win32_display_server_get_screen_orientation(void)
+{
+   DEVMODE dm = {0};
+   enum rotation rotation;
+
+   win32_get_video_output(&dm, -1, sizeof(dm));
+
+   switch (dm.dmDisplayOrientation)
+   {
+      case DMDO_DEFAULT:
+      default:
+         rotation = ORIENTATION_NORMAL;
+         break;
+      case DMDO_90:
+         rotation = ORIENTATION_FLIPPED_ROTATED;
+         break;
+      case DMDO_180:
+         rotation = ORIENTATION_FLIPPED;
+         break;
+      case DMDO_270:
+         rotation = ORIENTATION_VERTICAL;
+         break;
+   }
+
+   return rotation;
+}
+
+void win32_display_server_set_screen_orientation(enum rotation rotation)
+{
+   DEVMODE dm = {0};
+
+   win32_get_video_output(&dm, -1, sizeof(dm));
+
+   switch (rotation)
+   {
+      case ORIENTATION_NORMAL:
+      default:
+      {
+         int width = dm.dmPelsWidth;
+
+         if ((dm.dmDisplayOrientation == DMDO_90 || dm.dmDisplayOrientation == DMDO_270) && width != dm.dmPelsHeight)
+         {
+            /* device is changing orientations, swap the aspect */
+            dm.dmPelsWidth = dm.dmPelsHeight;
+            dm.dmPelsHeight = width;
+         }
+
+         dm.dmDisplayOrientation = DMDO_DEFAULT;
+         break;
+      }
+      case ORIENTATION_VERTICAL:
+      {
+         int width = dm.dmPelsWidth;
+
+         if ((dm.dmDisplayOrientation == DMDO_DEFAULT || dm.dmDisplayOrientation == DMDO_180) && width != dm.dmPelsHeight)
+         {
+            /* device is changing orientations, swap the aspect */
+            dm.dmPelsWidth = dm.dmPelsHeight;
+            dm.dmPelsHeight = width;
+         }
+
+         dm.dmDisplayOrientation = DMDO_270;
+         break;
+      }
+      case ORIENTATION_FLIPPED:
+      {
+         int width = dm.dmPelsWidth;
+
+         if ((dm.dmDisplayOrientation == DMDO_90 || dm.dmDisplayOrientation == DMDO_270) && width != dm.dmPelsHeight)
+         {
+            /* device is changing orientations, swap the aspect */
+            dm.dmPelsWidth = dm.dmPelsHeight;
+            dm.dmPelsHeight = width;
+         }
+
+         dm.dmDisplayOrientation = DMDO_180;
+         break;
+      }
+      case ORIENTATION_FLIPPED_ROTATED:
+      {
+         int width = dm.dmPelsWidth;
+
+         if ((dm.dmDisplayOrientation == DMDO_DEFAULT || dm.dmDisplayOrientation == DMDO_180) && width != dm.dmPelsHeight)
+         {
+            /* device is changing orientations, swap the aspect */
+            dm.dmPelsWidth = dm.dmPelsHeight;
+            dm.dmPelsHeight = width;
+         }
+
+         dm.dmDisplayOrientation = DMDO_90;
+         break;
+      }
+   }
+
+   win32_change_display_settings(NULL, &dm, 0);
+}
+#endif
+
+static uint32_t win32_display_server_get_flags(void *data)
+{
+   uint32_t             flags   = 0;
+
+   BIT32_SET(flags, DISPSERV_CTX_CRT_SWITCHRES);
+
+   return flags;
+}
+
 const video_display_server_t dispserv_win32 = {
    win32_display_server_init,
    win32_display_server_destroy,
@@ -355,5 +467,13 @@ const video_display_server_t dispserv_win32 = {
    win32_display_server_set_resolution,
    win32_display_server_get_resolution_list,
    NULL, /* get_output_options */
+#if _WIN32_WINNT >= 0x0500
+   win32_display_server_set_screen_orientation,
+   win32_display_server_get_screen_orientation,
+#else
+   NULL,
+   NULL,
+#endif
+   win32_display_server_get_flags,
    "win32"
 };

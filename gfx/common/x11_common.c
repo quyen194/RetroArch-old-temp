@@ -39,6 +39,7 @@
 #include <X11/extensions/xf86vmode.h>
 
 #include <encodings/utf.h>
+#include <compat/strl.h>
 
 #ifdef HAVE_DBUS
 #include "dbus_common.h"
@@ -49,11 +50,14 @@
 #include "../../input/input_keymaps.h"
 #include "../../input/common/input_x11_common.h"
 #include "../../verbosity.h"
+#include "../../configuration.h"
 
 #define _NET_WM_STATE_ADD                    1
 #define MOVERESIZE_GRAVITY_CENTER            5
 #define MOVERESIZE_X_SHIFT                   8
 #define MOVERESIZE_Y_SHIFT                   9
+
+#define V_DBLSCAN 0x20
 
 static XF86VidModeModeInfo desktop_mode;
 static bool xdg_screensaver_available       = true;
@@ -241,6 +245,7 @@ float x11_get_refresh_rate(void *data)
    Screen *screen;
    int screenid;
    int dotclock;
+   float refresh;
 
    if (!g_x11_dpy || g_x11_win == None)
       return 0.0f;
@@ -253,7 +258,13 @@ float x11_get_refresh_rate(void *data)
 
    XF86VidModeGetModeLine(g_x11_dpy, screenid, &dotclock, &modeline);
 
-   return (float) dotclock * 1000.0f / modeline.htotal / modeline.vtotal;
+   /* non-native modes like 1080p on a 4K display might use DoubleScan */
+   if (modeline.flags & V_DBLSCAN)
+      dotclock /= 2;
+
+   refresh = (float)dotclock * 1000.0f / modeline.htotal / modeline.vtotal;
+
+   return refresh;
 }
 
 static bool get_video_mode(video_frame_info_t *video_info,
@@ -387,6 +398,12 @@ bool x11_get_metrics(void *data,
 
    switch (type)
    {
+      case DISPLAY_METRIC_PIXEL_WIDTH:
+         *value = (float)pixels_x;
+         break;
+      case DISPLAY_METRIC_PIXEL_HEIGHT:
+         *value = (float)pixels_y;
+         break;
       case DISPLAY_METRIC_MM_WIDTH:
          *value = (float)physical_width;
          break;
@@ -455,7 +472,7 @@ static void x11_handle_key_event(unsigned keycode, XEvent *event, XIC ic, bool f
     * to feed it keysyms anyway, so here is a little hack... */
    if (keysym >= XK_A && keysym <= XK_Z)
        keysym += XK_z - XK_Z;
-       
+
    /* Get the real keycode,
       that correctly ignores international layouts as windows code does. */
    key     = input_keymaps_translate_keysym_to_rk(keycode);
@@ -490,7 +507,7 @@ bool x11_alive(void *data)
 
       /* Can get events from older windows. Check this. */
       XNextEvent(g_x11_dpy, &event);
-      
+
       /* IMPORTANT - Get keycode before XFilterEvent
          because the event is localizated after the call */
       keycode = event.xkey.keycode;
@@ -553,8 +570,22 @@ bool x11_alive(void *data)
          case ButtonRelease:
             break;
 
-         case KeyPress:
          case KeyRelease:
+            /*  When you receive a key release and the next event is a key press
+               of the same key combination, then it's auto-repeat and the
+               key wasn't actually released. */
+            if(XEventsQueued(g_x11_dpy, QueuedAfterReading))
+            {
+               XEvent next_event;
+               XPeekEvent(g_x11_dpy, &next_event);
+               if (next_event.type == KeyPress &&
+                   next_event.xkey.time == event.xkey.time &&
+                   next_event.xkey.keycode == event.xkey.keycode)
+               {
+                  break; /* Key wasn't actually released */
+               }
+            }
+         case KeyPress:
             if (event.xkey.window == g_x11_win)
                x11_handle_key_event(keycode, &event, g_x11_xic, filter);
             break;
@@ -648,9 +679,25 @@ bool x11_connect(void)
 
 void x11_update_title(void *data, void *data2)
 {
+   const settings_t *settings = config_get_ptr();
+   video_frame_info_t *video_info = (video_frame_info_t*)data2;
    char title[128];
 
    title[0] = '\0';
+
+   if (settings->bools.video_memory_show)
+   {
+      uint64_t mem_bytes_used = frontend_driver_get_used_memory();
+      uint64_t mem_bytes_total = frontend_driver_get_total_memory();
+      char         mem[128];
+
+      mem[0] = '\0';
+
+      snprintf(
+            mem, sizeof(mem), " || MEM: %.2f/%.2fMB", mem_bytes_used / (1024.0f * 1024.0f),
+            mem_bytes_total / (1024.0f * 1024.0f));
+      strlcat(video_info->fps_text, mem, sizeof(video_info->fps_text));
+   }
 
    video_driver_get_window_title(title, sizeof(title));
 

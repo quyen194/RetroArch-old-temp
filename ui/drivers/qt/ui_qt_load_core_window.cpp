@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2010-2014 - Hans-Kristian Arntzen
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2018 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -24,16 +24,18 @@
 extern "C" {
 #endif
 
+#include <string/stdstring.h>
+#include <file/file_path.h>
+#include <retro_miscellaneous.h>
+
 #include "../../../core_info.h"
 #include "../../../verbosity.h"
 #include "../../../configuration.h"
 #include "../../../msg_hash.h"
+#include "../../../paths.h"
 #include "../../../retroarch.h"
 #include "../../../command.h"
 #include "../../../frontend/frontend_driver.h"
-#include <string/stdstring.h>
-#include <file/file_path.h>
-#include <retro_miscellaneous.h>
 
 #ifndef CXX_BUILD
 }
@@ -127,8 +129,7 @@ void LoadCoreWindow::loadCore(const char *path)
    qApp->processEvents();
 
 #ifdef HAVE_DYNAMIC
-   /* const-removing cast is safe here because the path is never written to */
-   rarch_ctl(RARCH_CTL_SET_LIBRETRO_PATH, const_cast<char*>(path));
+   path_set(RARCH_PATH_CORE, path);
 
    command_event(CMD_EVENT_CORE_INFO_DEINIT, NULL);
    command_event(CMD_EVENT_CORE_INFO_INIT, NULL);

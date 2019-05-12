@@ -11,6 +11,7 @@ extern "C" {
 #include <string/stdstring.h>
 #include <streams/file_stream.h>
 #include <file/archive_file.h>
+#include <queues/task_queue.h>
 #include "../../../tasks/tasks_internal.h"
 #include "../../../verbosity.h"
 #include "../../../config.def.h"
@@ -24,10 +25,11 @@ extern "C" {
 #define TEMP_EXTENSION ".update_tmp"
 #define RETROARCH_NIGHTLY_UPDATE_PATH "../RetroArch_update.zip"
 
-static void extractUpdateCB(void *task_data, void *user_data, const char *err)
+static void extractUpdateCB(retro_task_t *task,
+      void *task_data, void *user_data, const char *err)
 {
    decompress_task_data_t *dec = (decompress_task_data_t*)task_data;
-   MainWindow *mainwindow = (MainWindow*)user_data;
+   MainWindow      *mainwindow = (MainWindow*)user_data;
 
    if (err)
       RARCH_ERR("%s", err);
@@ -104,9 +106,10 @@ void MainWindow::onUpdateNetworkSslErrors(const QList<QSslError> &errors)
    for (i = 0; i < errors.count(); i++)
    {
       const QSslError &error = errors.at(i);
-      QString string = QString("Ignoring SSL error code ") + QString::number(error.error()) + ": " + error.errorString();
+      QString         string = QString("Ignoring SSL error code ") + QString::number(error.error()) + ": " + error.errorString();
       QByteArray stringArray = string.toUtf8();
       const char *stringData = stringArray.constData();
+
       RARCH_ERR("[Qt]: %s\n", stringData);
    }
 
@@ -127,7 +130,10 @@ void MainWindow::onRetroArchUpdateDownloadFinished()
 
    m_updateProgressDialog->cancel();
 
-   /* At least on Linux, the progress dialog will refuse to hide itself and will stay on screen in a corrupted way if we happen to show an error message in this function. processEvents() will sometimes fix it, other times not... seems random. */
+   /* At least on Linux, the progress dialog will refuse to hide itself and 
+    * will stay onscreen in a corrupted way if we happen to show an error 
+    * message in this function. processEvents() will sometimes fix it, 
+    * other times not... seems random. */
    qApp->processEvents();
 
    if (!reply)
@@ -141,7 +147,9 @@ void MainWindow::onRetroArchUpdateDownloadFinished()
 
    if (code != 200)
    {
-      emit showErrorMessageDeferred(QString(msg_hash_to_str(MENU_ENUM_LABEL_VALUE_QT_NETWORK_ERROR)) + ": HTTP Code " + QString::number(code));
+      emit showErrorMessageDeferred(QString(
+               msg_hash_to_str(MENU_ENUM_LABEL_VALUE_QT_NETWORK_ERROR)) 
+            + ": HTTP Code " + QString::number(code));
       RARCH_ERR("[Qt]: RetroArch update failed with HTTP status code: %d\n", code);
       reply->disconnect();
       reply->abort();

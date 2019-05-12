@@ -1,7 +1,7 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2011-2017 - Daniel De Matteis
  *  Copyright (C) 2014-2017 - Jean-André Santoni
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *  Copyright (C) 2018      - Alfredo Monclús
  *  Copyright (C) 2018      - natinusala
  *
@@ -40,9 +40,7 @@ static const char *OZONE_TEXTURES_FILES[OZONE_TEXTURE_LAST] = {
 };
 
 enum OZONE_THEME_TEXTURES {
-   OZONE_THEME_TEXTURE_BUTTON_A = 0,
-   OZONE_THEME_TEXTURE_BUTTON_B,
-   OZONE_THEME_TEXTURE_SWITCH,
+   OZONE_THEME_TEXTURE_SWITCH = 0,
    OZONE_THEME_TEXTURE_CHECK,
 
    OZONE_THEME_TEXTURE_CURSOR_NO_BORDER,
@@ -52,10 +50,9 @@ enum OZONE_THEME_TEXTURES {
 };
 
 static const char *OZONE_THEME_TEXTURES_FILES[OZONE_THEME_TEXTURE_LAST] = {
-   "button_a",
-   "button_b",
    "switch",
    "check",
+
    "cursor_noborder",
    "cursor_static"
 };
@@ -141,6 +138,10 @@ enum
    OZONE_ENTRIES_ICONS_TEXTURE_CLOCK,
    OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_FULL,
    OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_CHARGING,
+   OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_80,
+   OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_60,
+   OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_40,
+   OZONE_ENTRIES_ICONS_TEXTURE_BATTERY_20,
    OZONE_ENTRIES_ICONS_TEXTURE_POINTER,
    OZONE_ENTRIES_ICONS_TEXTURE_ADD,
    OZONE_ENTRIES_ICONS_TEXTURE_KEY,

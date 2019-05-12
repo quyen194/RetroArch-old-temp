@@ -1,6 +1,6 @@
 /*  RetroArch - A frontend for libretro.
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2016-2017 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  *  RetroArch is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU General Public License as published by the Free Software Found-
@@ -50,7 +50,7 @@ static void menu_display_gdi_draw(menu_display_ctx_draw_t *draw,
 {
    struct gdi_texture *texture = NULL;
    gdi_t *gdi = (gdi_t*)video_driver_get_ptr(false);
-   BITMAPINFO info = {0};
+   BITMAPINFO info = {{0}};
 
    if (!gdi || !draw || draw->x < 0 || draw->y < 0 || draw->width <= 1 || draw->height <= 1)
       return;

@@ -93,14 +93,6 @@ static void frontend_ctr_get_environment_settings(int* argc, char* argv[],
 {
    (void)args;
 
-#ifndef IS_SALAMANDER
-#if defined(HAVE_LOGGER)
-   logger_init();
-#elif defined(HAVE_FILE_LOGGER)
-   retro_main_log_file_init("sdmc:/retroarch/retroarch-log.txt");
-#endif
-#endif
-
    fill_pathname_basedir(g_defaults.dirs[DEFAULT_DIR_PORT], elf_path_cst, sizeof(g_defaults.dirs[DEFAULT_DIR_PORT]));
    RARCH_LOG("port dir: [%s]\n", g_defaults.dirs[DEFAULT_DIR_PORT]);
 
@@ -125,11 +117,13 @@ static void frontend_ctr_get_environment_settings(int* argc, char* argv[],
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_REMAP], g_defaults.dirs[DEFAULT_DIR_PORT],
                       "config/remaps", sizeof(g_defaults.dirs[DEFAULT_DIR_REMAP]));
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_VIDEO_FILTER], g_defaults.dirs[DEFAULT_DIR_PORT],
-                      "filters", sizeof(g_defaults.dirs[DEFAULT_DIR_REMAP]));
+                      "filters", sizeof(g_defaults.dirs[DEFAULT_DIR_VIDEO_FILTER]));
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_DATABASE], g_defaults.dirs[DEFAULT_DIR_PORT],
                       "database/rdb", sizeof(g_defaults.dirs[DEFAULT_DIR_DATABASE]));
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_CURSOR], g_defaults.dirs[DEFAULT_DIR_PORT],
                       "database/cursors", sizeof(g_defaults.dirs[DEFAULT_DIR_CURSOR]));
+   fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_LOGS], g_defaults.dirs[DEFAULT_DIR_PORT],
+                      "logs", sizeof(g_defaults.dirs[DEFAULT_DIR_LOGS]));
    fill_pathname_join(g_defaults.path.config, g_defaults.dirs[DEFAULT_DIR_PORT],
                       file_path_str(FILE_PATH_MAIN_CONFIG), sizeof(g_defaults.path.config));
 }
@@ -139,17 +133,25 @@ static void frontend_ctr_deinit(void* data)
    Handle lcd_handle;
    u32 parallax_layer_reg_state;
    u8 not_2DS;
+   u8 device_model = 0xFF;
 
    extern PrintConsole* currentConsole;
 
    (void)data;
 
 #ifndef IS_SALAMANDER
+   /* Note: frontend_ctr_deinit() is normally called when
+    * forking to load new content. When this happens, the
+    * log messages generated in frontend_ctr_exec() *must*
+    * be printed to screen (provided bottom screen is not
+    * turned off...), since the 'first core launch' warning
+    * can prevent sdcard corruption. We therefore close any
+    * existing log file, enable verbose logging and revert
+    * to console output. (Normal logging will be resumed
+    * once retroarch.cfg has been re-read) */
+   retro_main_log_file_deinit();
    verbosity_enable();
-
-#ifdef HAVE_FILE_LOGGER
-   command_event(CMD_EVENT_LOG_FILE_DEINIT, NULL);
-#endif
+   retro_main_log_file_init(NULL, false);
 
    if ((gfxBottomFramebuffers[0] == (u8*)currentConsole->frameBuffer)
          && (ctr_fork_mode == FRONTEND_FORK_NONE))
@@ -166,8 +168,16 @@ static void frontend_ctr_deinit(void* data)
       svcCloseHandle(lcd_handle);
    }
 
-   parallax_layer_reg_state = (*(float*)0x1FF81080 == 0.0) ? 0x0 : 0x00010001;
-   GSPGPU_WriteHWRegs(0x202000, &parallax_layer_reg_state, 4);
+   /* Only O3DS and O3DSXL support running in 'dual-framebuffer'
+    * mode with the parallax barrier disabled
+    * (i.e. these are the only platforms that can use
+    * CTR_VIDEO_MODE_2D_400x240 and CTR_VIDEO_MODE_2D_800x240) */
+   CFGU_GetSystemModel(&device_model); /* (0 = O3DS, 1 = O3DSXL, 2 = N3DS, 3 = 2DS, 4 = N3DSXL, 5 = N2DSXL) */
+   if ((device_model == 0) || (device_model == 1))
+   {
+      parallax_layer_reg_state = (*(float*)0x1FF81080 == 0.0) ? 0x0 : 0x00010001;
+      GSPGPU_WriteHWRegs(0x202000, &parallax_layer_reg_state, 4);
+   }
 
    mcuHwcExit();
    ptmuExit();
@@ -186,15 +196,16 @@ static void frontend_ctr_exec(const char* path, bool should_load_game)
    const char* arg_data[3];
    errorConf error_dialog;
    char error_string[200 + PATH_MAX];
-   int args = 0;
-   int error = 0;
+   int args           = 0;
+   int error          = 0;
 
    DEBUG_VAR(path);
    DEBUG_STR(path);
-   
-   arg_data[0] = NULL;
 
-   arg_data[args] = elf_path_cst;
+   game_path[0]       = '\0';
+   arg_data[0]        = NULL;
+
+   arg_data[args]     = elf_path_cst;
    arg_data[args + 1] = NULL;
    args++;
 
@@ -203,9 +214,9 @@ static void frontend_ctr_exec(const char* path, bool should_load_game)
    if (should_load_game && !path_is_empty(RARCH_PATH_CONTENT))
    {
       strcpy(game_path, path_get(RARCH_PATH_CONTENT));
-	  arg_data[args] = game_path;
-	  arg_data[args + 1] = NULL;
-	  args++;
+      arg_data[args] = game_path;
+      arg_data[args + 1] = NULL;
+      args++;
       RARCH_LOG("content path: [%s].\n", path_get(RARCH_PATH_CONTENT));
    }
 #endif
@@ -214,12 +225,13 @@ static void frontend_ctr_exec(const char* path, bool should_load_game)
    {
 #ifdef IS_SALAMANDER
       struct stat sbuff;
-      bool file_exists;
+      bool file_exists = stat(path, &sbuff) == 0;
 
-      file_exists = stat(path, &sbuff) == 0;
       if (!file_exists)
       {
          char core_path[PATH_MAX];
+
+         core_path[0] = '\0';
 
          /* find first valid core and load it if the target core doesnt exist */
          get_first_valid_core(&core_path[0]);
@@ -233,11 +245,9 @@ static void frontend_ctr_exec(const char* path, bool should_load_game)
          }
       }
 #endif
-	  
+
       if (envIsHomebrew())
-      {
          exec_3dsx_no_path_in_args(path, arg_data);
-      }
       else
       {
          RARCH_WARN("\n");
@@ -253,10 +263,12 @@ static void frontend_ctr_exec(const char* path, bool should_load_game)
       }
 
       errorInit(&error_dialog, ERROR_TEXT, CFG_LANGUAGE_EN);
-      snprintf(error_string, sizeof(error_string), "Cant launch core:%s", path);
+      snprintf(error_string, sizeof(error_string),
+            "Can't launch core:%s", path);
       errorText(&error_dialog, error_string);
       errorDisp(&error_dialog);
-      exit(0);//couldnt launch new core, but context is corrupt so we have to quit
+      exit(0); /* couldnt launch new core, but context 
+                  is corrupt so we have to quit */
    }
 }
 
@@ -320,30 +332,35 @@ static void ctr_check_dspfirm(void)
       fclose(dsp_fp);
    else
    {
-      size_t code_size;
-      uint32_t* code_buffer     = NULL;
-      uint32_t* ptr             = NULL;
-      const uint32_t dsp1_magic = 0x31505344; /* "DSP1" */
-      FILE*             code_fp = fopen("sdmc:/3ds/code.bin", "rb");
+      FILE *code_fp = fopen("sdmc:/3ds/code.bin", "rb");
 
       if (code_fp)
       {
+         size_t code_size;
+         uint32_t* code_buffer     = NULL;
+
          fseek(code_fp, 0, SEEK_END);
          code_size = ftell(code_fp);
          fseek(code_fp, 0, SEEK_SET);
 
          code_buffer = (uint32_t*) malloc(code_size);
+
          if (code_buffer)
          {
+            uint32_t *ptr = NULL;
+
             fread(code_buffer, 1, code_size, code_fp);
 
-            for (ptr = code_buffer + 0x40; ptr < (code_buffer + (code_size >> 2)); ptr++)
+            for (ptr = code_buffer + 0x40;
+                 ptr < (code_buffer + (code_size >> 2)); ptr++)
             {
+               const uint32_t dsp1_magic = 0x31505344; /* "DSP1" */
                if (*ptr == dsp1_magic)
                {
                   size_t dspfirm_size = ptr[1];
                   ptr -= 0x40;
-                  if ((ptr + (dspfirm_size >> 2)) > (code_buffer + (code_size >> 2)))
+                  if ((ptr + (dspfirm_size >> 2)) > 
+                        (code_buffer + (code_size >> 2)))
                      break;
 
                   dsp_fp = fopen("sdmc:/3ds/dspfirm.cdc", "wb");
@@ -386,23 +403,23 @@ static void frontend_ctr_init(void* data)
 
    gfxInit(GSP_BGR8_OES, GSP_RGB565_OES, false);
 
-   u32 topSize = 400 * 240 * 3;
-   u32 bottomSize = 320 * 240 * 2;
-   linearFree(gfxTopLeftFramebuffers[0]);
-   linearFree(gfxTopLeftFramebuffers[1]);
-   linearFree(gfxBottomFramebuffers[0]);
-   linearFree(gfxBottomFramebuffers[1]);
+   u32 topSize               = 400 * 240 * 3;
+   u32 bottomSize            = 320 * 240 * 2;
+   linearFree(gfxTopLeftFramebuffers [0]);
+   linearFree(gfxTopLeftFramebuffers [1]);
+   linearFree(gfxBottomFramebuffers  [0]);
+   linearFree(gfxBottomFramebuffers  [1]);
    linearFree(gfxTopRightFramebuffers[0]);
    linearFree(gfxTopRightFramebuffers[1]);
 
-   gfxTopLeftFramebuffers[0] = linearAlloc(topSize * 2);
+   gfxTopLeftFramebuffers [0] = linearAlloc(topSize * 2);
    gfxTopRightFramebuffers[0] = gfxTopLeftFramebuffers[0] + topSize;
 
-   gfxTopLeftFramebuffers[1] = linearAlloc(topSize * 2);
+   gfxTopLeftFramebuffers [1] = linearAlloc(topSize * 2);
    gfxTopRightFramebuffers[1] = gfxTopLeftFramebuffers[1] + topSize;
 
-   gfxBottomFramebuffers[0] = linearAlloc(bottomSize);
-   gfxBottomFramebuffers[1] = linearAlloc(bottomSize);
+   gfxBottomFramebuffers  [0] = linearAlloc(bottomSize);
+   gfxBottomFramebuffers  [1] = linearAlloc(bottomSize);
 
    gfxSetFramebufferInfo(GFX_TOP, 0);
    gfxSetFramebufferInfo(GFX_BOTTOM, 0);
@@ -429,11 +446,12 @@ static void frontend_ctr_init(void* data)
 #endif
 }
 
-
 static int frontend_ctr_get_rating(void)
 {
    u8 device_model = 0xFF;
-   CFGU_GetSystemModel(&device_model);/*(0 = O3DS, 1 = O3DSXL, 2 = N3DS, 3 = 2DS, 4 = N3DSXL, 5 = N2DSXL)*/
+   
+   /*(0 = O3DS, 1 = O3DSXL, 2 = N3DS, 3 = 2DS, 4 = N3DSXL, 5 = N2DSXL)*/
+   CFGU_GetSystemModel(&device_model);
 
    switch (device_model)
    {
@@ -442,13 +460,11 @@ static int frontend_ctr_get_rating(void)
       case 3:
          /*Old 3/2DS*/
          return 3;
-
       case 2:
       case 4:
       case 5:
          /*New 3/2DS*/
          return 6;
-
       default:
          /*Unknown Device Or Check Failed*/
          break;
@@ -466,18 +482,19 @@ static int frontend_ctr_parse_drive_list(void* data, bool load_content)
 {
 #ifndef IS_SALAMANDER
    file_list_t* list = (file_list_t*)data;
-   enum msg_hash_enums enum_idx = load_content ?
-                                  MENU_ENUM_LABEL_FILE_DETECT_CORE_LIST_PUSH_DIR :
-                                  MSG_UNKNOWN;
+   enum msg_hash_enums enum_idx = load_content
+      ? MENU_ENUM_LABEL_FILE_DETECT_CORE_LIST_PUSH_DIR
+      : MSG_UNKNOWN;
 
    if (!list)
       return -1;
 
    menu_entries_append_enum(list,
-                            "sdmc:/",
-                            msg_hash_to_str(MENU_ENUM_LABEL_FILE_DETECT_CORE_LIST_PUSH_DIR),
-                            enum_idx,
-                            FILE_TYPE_DIRECTORY, 0, 0);
+         "sdmc:/",
+         msg_hash_to_str(
+            MENU_ENUM_LABEL_FILE_DETECT_CORE_LIST_PUSH_DIR),
+         enum_idx,
+         FILE_TYPE_DIRECTORY, 0, 0);
 #endif
 
    return 0;
@@ -493,30 +510,28 @@ static uint64_t frontend_ctr_get_mem_used(void)
    return osGetMemRegionUsed(MEMREGION_ALL);
 }
 
-static enum frontend_powerstate frontend_ctr_get_powerstate(int* seconds, int* percent)
+static enum frontend_powerstate frontend_ctr_get_powerstate(
+      int* seconds, int* percent)
 {
-   u8 battery_percent = 0;
-   u8 charging = 0;
-   enum frontend_powerstate pwr_state = FRONTEND_POWERSTATE_NONE;
+   u8                 battery_percent = 0;
+   u8                        charging = 0;
 
    mcuHwcGetBatteryLevel(&battery_percent);
-   *percent = battery_percent;
 
-   /* 3ds does not support seconds of charge remaining */
-   *seconds = -1;
+   *percent                           = battery_percent;
+   /* 3DS does not support seconds of charge remaining */
+   *seconds                           = -1;
 
    PTMU_GetBatteryChargeState(&charging);
+
    if (charging)
    {
       if (battery_percent == 100)
-         pwr_state = FRONTEND_POWERSTATE_CHARGED;
-      else
-         pwr_state = FRONTEND_POWERSTATE_CHARGING;
+         return FRONTEND_POWERSTATE_CHARGED;
+      return FRONTEND_POWERSTATE_CHARGING;
    }
-   else
-      pwr_state = FRONTEND_POWERSTATE_ON_POWER_SOURCE;
 
-   return pwr_state;
+   return FRONTEND_POWERSTATE_ON_POWER_SOURCE;
 }
 
 static void frontend_ctr_get_os(char* s, size_t len, int* major, int* minor)
@@ -542,7 +557,9 @@ static void frontend_ctr_get_os(char* s, size_t len, int* major, int* minor)
 static void frontend_ctr_get_name(char* s, size_t len)
 {
    u8 device_model = 0xFF;
-   CFGU_GetSystemModel(&device_model);/*(0 = O3DS, 1 = O3DSXL, 2 = N3DS, 3 = 2DS, 4 = N3DSXL, 5 = N2DSXL)*/
+   
+   /*(0 = O3DS, 1 = O3DSXL, 2 = N3DS, 3 = 2DS, 4 = N3DSXL, 5 = N2DSXL)*/
+   CFGU_GetSystemModel(&device_model);
 
    switch (device_model)
    {
@@ -603,5 +620,7 @@ frontend_ctx_driver_t frontend_ctx_ctr =
    NULL,                         /* watch_path_for_changes */
    NULL,                         /* check_for_path_changes */
    NULL,                         /* set_sustained_performance_mode */
+   NULL,                         /* get_cpu_model_name */
+   NULL,                         /* get_user_language */
    "ctr",
 };

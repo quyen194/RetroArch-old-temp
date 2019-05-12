@@ -189,7 +189,7 @@ LRESULT win32_menu_loop(HWND owner, WPARAM wparam)
             switch (mode)
             {
                case ID_M_LOAD_CORE:
-                  rarch_ctl(RARCH_CTL_SET_LIBRETRO_PATH, win32_file);
+                  path_set(RARCH_PATH_CORE, win32_file);
                   cmd         = CMD_EVENT_LOAD_CORE;
                   break;
                case ID_M_LOAD_CONTENT:
@@ -236,6 +236,9 @@ LRESULT win32_menu_loop(HWND owner, WPARAM wparam)
          break;
       case ID_M_QUIT:
          do_wm_close = true;
+         break;
+      case ID_M_TOGGLE_DESKTOP:
+         cmd = CMD_EVENT_UI_COMPANION_TOGGLE;
          break;
       default:
          if (mode >= ID_M_WINDOW_SCALE_1X && mode <= ID_M_WINDOW_SCALE_10X)

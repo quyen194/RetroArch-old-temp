@@ -1,6 +1,6 @@
 /* RetroArch - A frontend for libretro.
  *  Copyright (C) 2011-2017 - Daniel De Matteis
- *  Copyright (C) 2018 - Brad Parker
+ *  Copyright (C) 2016-2019 - Brad Parker
  *
  * RetroArch is free software: you can redistribute it and/or modify it under the terms
  * of the GNU General Public License as published by the Free Software Found-
@@ -97,7 +97,9 @@ void ThumbnailWidget::dragEnterEvent(QDragEnterEvent *event)
       event->acceptProposedAction();
 }
 
-/* Workaround for QTBUG-72844. Without it, you can't drop on this if you first drag over another widget that doesn't accept drops. */
+/* Workaround for QTBUG-72844. Without it, you can't 
+ * drop on this if you first drag over another 
+ * widget that doesn't accept drops. */
 void ThumbnailWidget::dragMoveEvent(QDragMoveEvent *event)
 {
    event->acceptProposedAction();
@@ -155,10 +157,10 @@ QSize ThumbnailLabel::sizeHint() const
 
 void ThumbnailLabel::paintEvent(QPaintEvent *event)
 {
-   int w = width();
-   int h = height();
    QStyleOption o;
    QPainter p;
+   int w = width();
+   int h = height();
 
    event->accept();
 
@@ -170,6 +172,8 @@ void ThumbnailLabel::paintEvent(QPaintEvent *event)
 
    if (!m_pixmap || m_pixmap->isNull())
    {
+      if (m_pixmap)
+         delete m_pixmap;
       m_pixmap = new QPixmap(sizeHint());
       m_pixmap->fill(QColor(0, 0, 0, 0));
    }
@@ -232,70 +236,70 @@ static void ui_companion_qt_deinit(void *data)
 
 static void* ui_companion_qt_init(void)
 {
-   ui_companion_qt_t *handle = (ui_companion_qt_t*)calloc(1, sizeof(*handle));
-   MainWindow *mainwindow = NULL;
-   QHBoxLayout *browserButtonsHBoxLayout = NULL;
-   QVBoxLayout *layout = NULL;
-   QVBoxLayout *playlistViewsLayout = NULL;
-   QVBoxLayout *launchWithWidgetLayout = NULL;
-   QHBoxLayout *coreComboBoxLayout = NULL;
-   QMenuBar *menu = NULL;
-   QDesktopWidget *desktop = NULL;
-   QMenu *fileMenu = NULL;
-   QMenu *editMenu = NULL;
-   QMenu *viewMenu = NULL;
-   QMenu *viewClosedDocksMenu = NULL;
-#ifdef Q_OS_WIN
-   QMenu *toolsMenu = NULL;
-   QMenu *updaterMenu = NULL;
-#endif
-   QMenu *helpMenu = NULL;
-   QRect desktopRect;
-   QDockWidget *thumbnailDock = NULL;
-   QDockWidget *thumbnail2Dock = NULL;
-   QDockWidget *thumbnail3Dock = NULL;
-   QDockWidget *browserAndPlaylistTabDock = NULL;
-   QDockWidget *coreSelectionDock = NULL;
-   QTabWidget *browserAndPlaylistTabWidget = NULL;
-   QStackedWidget *centralWidget = NULL;
-   QStackedWidget *widget = NULL;
-   QFrame *browserWidget = NULL;
-   QFrame *playlistWidget = NULL;
-   QWidget *coreSelectionWidget = NULL;
-   QWidget *launchWithWidget = NULL;
-   ThumbnailWidget *thumbnailWidget = NULL;
-   ThumbnailWidget *thumbnail2Widget = NULL;
-   ThumbnailWidget *thumbnail3Widget = NULL;
-   QPushButton *browserDownloadsButton = NULL;
-   QPushButton *browserUpButton = NULL;
-   QPushButton *browserStartButton = NULL;
-   ThumbnailLabel *thumbnail = NULL;
-   ThumbnailLabel *thumbnail2 = NULL;
-   ThumbnailLabel *thumbnail3 = NULL;
-   QAction *editSearchAction = NULL;
-   QAction *loadCoreAction = NULL;
-   QAction *unloadCoreAction = NULL;
-   QAction *exitAction = NULL;
-   QComboBox *launchWithComboBox = NULL;
-   QSettings *qsettings = NULL;
-   QListWidget *listWidget = NULL;
-   QString initialPlaylist;
-   bool foundPlaylist = false;
-
    int i = 0;
+   QString initialPlaylist;
+   QRect desktopRect;
+   ui_companion_qt_t               *handle = (ui_companion_qt_t*)
+      calloc(1, sizeof(*handle));
+   MainWindow                  *mainwindow = NULL;
+   QHBoxLayout   *browserButtonsHBoxLayout = NULL;
+   QVBoxLayout                     *layout = NULL;
+   QVBoxLayout     *launchWithWidgetLayout = NULL;
+   QHBoxLayout         *coreComboBoxLayout = NULL;
+   QMenuBar                          *menu = NULL;
+   QDesktopWidget                 *desktop = NULL;
+   QMenu                         *fileMenu = NULL;
+   QMenu                         *editMenu = NULL;
+   QMenu                         *viewMenu = NULL;
+   QMenu              *viewClosedDocksMenu = NULL;
+#ifdef Q_OS_WIN
+   QMenu                        *toolsMenu = NULL;
+   QMenu                      *updaterMenu = NULL;
+#endif
+   QMenu                         *helpMenu = NULL;
+   QDockWidget              *thumbnailDock = NULL;
+   QDockWidget             *thumbnail2Dock = NULL;
+   QDockWidget             *thumbnail3Dock = NULL;
+   QDockWidget  *browserAndPlaylistTabDock = NULL;
+   QDockWidget          *coreSelectionDock = NULL;
+   QTabWidget *browserAndPlaylistTabWidget = NULL;
+   QStackedWidget           *centralWidget = NULL;
+   QStackedWidget                  *widget = NULL;
+   QFrame                   *browserWidget = NULL;
+   QFrame                  *playlistWidget = NULL;
+   QWidget            *coreSelectionWidget = NULL;
+   QWidget               *launchWithWidget = NULL;
+   ThumbnailWidget        *thumbnailWidget = NULL;
+   ThumbnailWidget       *thumbnail2Widget = NULL;
+   ThumbnailWidget       *thumbnail3Widget = NULL;
+   QPushButton     *browserDownloadsButton = NULL;
+   QPushButton            *browserUpButton = NULL;
+   QPushButton         *browserStartButton = NULL;
+   ThumbnailLabel               *thumbnail = NULL;
+   ThumbnailLabel              *thumbnail2 = NULL;
+   ThumbnailLabel              *thumbnail3 = NULL;
+   QAction               *editSearchAction = NULL;
+   QAction                 *loadCoreAction = NULL;
+   QAction               *unloadCoreAction = NULL;
+   QAction                     *exitAction = NULL;
+   QComboBox           *launchWithComboBox = NULL;
+   QSettings                    *qsettings = NULL;
+   QListWidget                 *listWidget = NULL;
+   bool                      foundPlaylist = false;
 
    if (!handle)
       return NULL;
 
-   handle->app = static_cast<ui_application_qt_t*>(ui_application_qt.initialize());
-   handle->window = static_cast<ui_window_qt_t*>(ui_window_qt.init());
+   handle->app     = static_cast<ui_application_qt_t*>
+      (ui_application_qt.initialize());
+   handle->window  = static_cast<ui_window_qt_t*>(ui_window_qt.init());
 
-   desktop = qApp->desktop();
-   desktopRect = desktop->availableGeometry();
+   desktop         = qApp->desktop();
+   desktopRect     = desktop->availableGeometry();
 
-   mainwindow = handle->window->qtWindow;
+   mainwindow      = handle->window->qtWindow;
 
-   qsettings = mainwindow->settings();
+   qsettings       = mainwindow->settings();
 
    initialPlaylist = qsettings->value("initial_playlist", mainwindow->getSpecialPlaylistPath(SPECIAL_PLAYLIST_HISTORY)).toString();
 
@@ -305,9 +309,9 @@ static void* ui_companion_qt_init(void)
    mainwindow->setWindowTitle("RetroArch");
    mainwindow->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | GROUPED_DRAGGING);
 
-   listWidget = mainwindow->playlistListWidget();
+   listWidget      = mainwindow->playlistListWidget();
 
-   widget = mainwindow->playlistViews();
+   widget          = mainwindow->playlistViews();
    widget->setContextMenuPolicy(Qt::CustomContextMenu);
 
    QObject::connect(widget, SIGNAL(filesDropped(QStringList)), mainwindow, SLOT(onPlaylistFilesDropped(QStringList)));
@@ -424,7 +428,6 @@ static void* ui_companion_qt_init(void)
    thumbnail3Widget = new ThumbnailWidget(THUMBNAIL_TYPE_SCREENSHOT);
    thumbnail3Widget->setObjectName("thumbnail3");
 
-
    QObject::connect(thumbnailWidget, SIGNAL(filesDropped(const QImage&, ThumbnailType)), mainwindow, SLOT(onThumbnailDropped(const QImage&, ThumbnailType)));
    QObject::connect(thumbnail2Widget, SIGNAL(filesDropped(const QImage&, ThumbnailType)), mainwindow, SLOT(onThumbnailDropped(const QImage&, ThumbnailType)));
    QObject::connect(thumbnail3Widget, SIGNAL(filesDropped(const QImage&, ThumbnailType)), mainwindow, SLOT(onThumbnailDropped(const QImage&, ThumbnailType)));
@@ -520,6 +523,9 @@ static void* ui_companion_qt_init(void)
    if (qsettings->contains("geometry"))
       if (qsettings->contains("save_geometry"))
          mainwindow->restoreGeometry(qsettings->value("geometry").toByteArray());
+
+   if (qsettings->contains("options_dialog_geometry"))
+      mainwindow->viewOptionsDialog()->restoreGeometry(qsettings->value("options_dialog_geometry").toByteArray());
 
    if (qsettings->contains("save_dock_positions"))
       if (qsettings->contains("dock_positions"))

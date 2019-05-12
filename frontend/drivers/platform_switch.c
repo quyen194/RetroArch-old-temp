@@ -75,8 +75,16 @@ extern bool nxlink_connected;
 
 void libnx_apply_overclock() {
    const size_t profiles_count = sizeof(SWITCH_CPU_PROFILES) / sizeof(SWITCH_CPU_PROFILES[1]);
-   if (config_get_ptr()->uints.libnx_overclock >= 0 && config_get_ptr()->uints.libnx_overclock <= profiles_count)
-      pcvSetClockRate(PcvModule_Cpu, SWITCH_CPU_SPEEDS_VALUES[config_get_ptr()->uints.libnx_overclock]);
+   if (config_get_ptr()->uints.libnx_overclock >= 0 && config_get_ptr()->uints.libnx_overclock <= profiles_count){
+      if(hosversionBefore(8, 0, 0)) {
+         pcvSetClockRate(PcvModule_CpuBus, SWITCH_CPU_SPEEDS_VALUES[config_get_ptr()->uints.libnx_overclock]);
+      } else {
+         ClkrstSession session = {0};
+         clkrstOpenSession(&session, PcvModuleId_CpuBus, 3);
+         clkrstSetClockRate(&session, SWITCH_CPU_SPEEDS_VALUES[config_get_ptr()->uints.libnx_overclock]);
+         clkrstCloseSession(&session);
+      }
+   }
 }
 
 static void on_applet_hook(AppletHookType hook, void *param) {
@@ -97,7 +105,14 @@ static void on_applet_hook(AppletHookType hook, void *param) {
       RARCH_LOG("Got AppletHook OnFocusState - new focus state is %d\n", focus_state);
       platform_switch_has_focus = focus_state == AppletFocusState_Focused;
       if(!platform_switch_has_focus) {
-         pcvSetClockRate(PcvModule_Cpu, 1020000000);
+         if(hosversionBefore(8, 0, 0)) {
+            pcvSetClockRate(PcvModule_CpuBus, 1020000000);
+         } else {
+            ClkrstSession session = {0};
+            clkrstOpenSession(&session, PcvModuleId_CpuBus, 3);
+            clkrstSetClockRate(&session, 1020000000);
+            clkrstCloseSession(&session);
+         }
       } else {
          libnx_apply_overclock();
       }
@@ -223,6 +238,9 @@ static void frontend_switch_get_environment_settings(int *argc, char *argv[], vo
    fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_THUMBNAILS], g_defaults.dirs[DEFAULT_DIR_PORT],
                       "thumbnails", sizeof(g_defaults.dirs[DEFAULT_DIR_THUMBNAILS]));
 
+   fill_pathname_join(g_defaults.dirs[DEFAULT_DIR_LOGS], g_defaults.dirs[DEFAULT_DIR_PORT],
+                      "logs", sizeof(g_defaults.dirs[DEFAULT_DIR_LOGS]));
+
    int i = 0;
    for (i; i < DEFAULT_DIR_LAST; i++)
    {
@@ -230,7 +248,7 @@ static void frontend_switch_get_environment_settings(int *argc, char *argv[], vo
       if (!string_is_empty(dir_path))
          path_mkdir(dir_path);
    }
-   
+
    fill_pathname_join(g_defaults.path.config, g_defaults.dirs[DEFAULT_DIR_PORT],
                       file_path_str(FILE_PATH_MAIN_CONFIG), sizeof(g_defaults.path.config));
 }
@@ -242,8 +260,18 @@ static void frontend_switch_deinit(void *data)
 
 #ifdef HAVE_LIBNX
    nifmExit();
-   pcvSetClockRate(PcvModule_Cpu, 1020000000); // Always 1020 MHz, unless SDEV
-   pcvExit();
+
+   if(hosversionBefore(8, 0, 0)) {
+      pcvSetClockRate(PcvModule_CpuBus, 1020000000);
+      pcvExit();
+   } else {
+      ClkrstSession session = {0};
+      clkrstOpenSession(&session, PcvModuleId_CpuBus, 3);
+      clkrstSetClockRate(&session, 1020000000);
+      clkrstCloseSession(&session);
+      clkrstExit();
+   }
+
 #if defined(SWITCH) && defined(NXLINK)
    socketExit();
 #endif
@@ -666,7 +694,12 @@ static void frontend_switch_init(void *data)
 
 #ifdef HAVE_LIBNX
    nifmInitialize();
-   pcvInitialize();
+   
+   if(hosversionBefore(8, 0, 0)) {
+      pcvInitialize();
+   } else {
+      clkrstInitialize();
+   }
 
    appletLockExit();
    appletHook(&applet_hook_cookie, on_applet_hook, NULL);
@@ -832,37 +865,12 @@ static void frontend_switch_get_os(char *s, size_t len, int *major, int *minor)
    strlcpy(s, "Horizon OS", len);
 
 #ifdef HAVE_LIBNX
-   /* There is pretty sure a better way, but this will do just fine */
-   if (kernelAbove600())
-   {
-      *major = 6;
-      *minor = 0;
-   }
-   else if(kernelAbove500())
-   {
-      *major = 5;
-      *minor = 0;
-   }else if (kernelAbove400())
-   {
-      *major = 4;
-      *minor = 0;
-   }
-   else if (kernelAbove300())
-   {
-      *major = 3;
-      *minor = 0;
-   }
-   else if (kernelAbove200())
-   {
-      *major = 2;
-      *minor = 0;
-   }
-   else
-   {
-      /* either 1.0 or > 5.x */
-      *major = 1;
-      *minor = 0;
-   }
+   *major = 0;
+   *minor = 0;
+
+   u32 hosVersion = hosversionGet();
+   *major = HOSVER_MAJOR(hosVersion);
+   *minor = HOSVER_MINOR(hosVersion);
 #else
    /* defaults in case we error out */
    *major = 0;
@@ -886,7 +894,7 @@ static void frontend_switch_get_os(char *s, size_t len, int *major, int *minor)
 
    int patch;
    sscanf(firmware_version + 0x68, "%d.%d.%d", major, minor, &patch);
-   
+
 fail_object:
    ipc_close(set_sys);
 fail_sm:
@@ -902,6 +910,17 @@ static void frontend_switch_get_name(char *s, size_t len)
    strlcpy(s, "Nintendo Switch", len);
 }
 
+void frontend_switch_process_args(int *argc, char *argv[])
+{
+#ifdef HAVE_STATIC_DUMMY
+   if (*argc >= 1)
+   {
+      /* Ensure current Path is set, only works for the static dummy, likely a hbloader args Issue (?) */
+      path_set(RARCH_PATH_CORE, argv[0]);
+   }
+#endif
+}
+
 frontend_ctx_driver_t frontend_ctx_switch =
     {
         frontend_switch_get_environment_settings,
@@ -909,7 +928,7 @@ frontend_ctx_driver_t frontend_ctx_switch =
         frontend_switch_deinit,
 #ifdef HAVE_LIBNX
         frontend_switch_exitspawn,
-        NULL, /* process_args */
+        frontend_switch_process_args,
         frontend_switch_exec,
 #ifdef IS_SALAMANDER
         NULL,
@@ -941,5 +960,7 @@ frontend_ctx_driver_t frontend_ctx_switch =
         NULL, /* watch_path_for_changes */
         NULL, /* check_for_path_changes */
         NULL, /* set_sustained_performance_mode */
+        NULL, /* get_cpu_model_name */
+        NULL, /* get_user_language */
         "switch",
 };

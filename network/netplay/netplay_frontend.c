@@ -500,16 +500,23 @@ static bool netplay_poll(void)
          /* Stalled out! */
          if (netplay_data->is_server)
          {
+            bool fixed = false;
             for (i = 0; i < netplay_data->connections_size; i++)
             {
                struct netplay_connection *connection = &netplay_data->connections[i];
                if (connection->active &&
                    connection->mode == NETPLAY_CONNECTION_PLAYING &&
-                   connection->stall &&
-                   now - connection->stall_time >= MAX_SERVER_STALL_TIME_USEC)
+                   connection->stall)
                {
                   netplay_hangup(netplay_data, connection);
+                  fixed = true;
                }
+            }
+
+            if (fixed) {
+               /* Not stalled now :) */
+               netplay_data->stall = NETPLAY_STALL_NONE;
+               return true;
             }
          }
          else
@@ -638,7 +645,8 @@ static int16_t netplay_input_state(netplay_t *netplay,
    }
 }
 
-static void netplay_announce_cb(void *task_data, void *user_data, const char *error)
+static void netplay_announce_cb(retro_task_t *task,
+      void *task_data, void *user_data, const char *error)
 {
    RARCH_LOG("[netplay] announcing netplay game... \n");
 
@@ -893,12 +901,12 @@ static void netplay_announce(void)
 
    netplay_get_architecture(frontend_architecture, sizeof(frontend_architecture));
 
-   if (!string_is_empty(settings->paths.username))
-      net_http_urlencode(&username, settings->paths.username);
 #ifdef HAVE_DISCORD
-   else
+   if(discord_is_ready())
       net_http_urlencode(&username, discord_get_own_username());
+   else
 #endif
+   net_http_urlencode(&username, settings->paths.username);
    net_http_urlencode(&corename, system->library_name);
    net_http_urlencode(&coreversion, system->library_version);
    net_http_urlencode(&frontend_ident, frontend_architecture);
@@ -963,7 +971,7 @@ bool netplay_command(netplay_t* netplay, struct netplay_connection *connection,
    if (!netplay_send_raw_cmd(netplay, connection, cmd, data, sz))
       return false;
 
-   runloop_msg_queue_push(success_msg, 1, 180, false);
+   runloop_msg_queue_push(success_msg, 1, 180, false, NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
 
    return true;
 }
@@ -1412,6 +1420,15 @@ static bool netplay_disconnect(netplay_t *netplay)
       netplay_hangup(netplay, &netplay->connections[i]);
 
    deinit_netplay();
+
+#ifdef HAVE_DISCORD
+   if (discord_is_inited)
+   {
+      discord_userdata_t userdata;
+      userdata.status = DISCORD_PRESENCE_NETPLAY_NETPLAY_STOPPED;
+      command_event(CMD_EVENT_DISCORD_UPDATE, &userdata);
+   }
+#endif
    return true;
 }
 
@@ -1481,7 +1498,8 @@ bool init_netplay(void *direct_host, const char *server, unsigned port)
       RARCH_LOG("[netplay] %s\n", msg_hash_to_str(MSG_WAITING_FOR_CLIENT));
       runloop_msg_queue_push(
          msg_hash_to_str(MSG_WAITING_FOR_CLIENT),
-         0, 180, false);
+         0, 180, false,
+         NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
 
       if (settings->bools.netplay_public_announce)
          netplay_announce();
@@ -1505,7 +1523,7 @@ bool init_netplay(void *direct_host, const char *server, unsigned port)
          &cbs,
          settings->bools.netplay_nat_traversal,
 #ifdef HAVE_DISCORD
-         string_is_empty(settings->paths.username) ? discord_get_own_username() :
+         discord_get_own_username() ? discord_get_own_username() :
 #endif
          settings->paths.username,
          quirks);
@@ -1521,7 +1539,8 @@ bool init_netplay(void *direct_host, const char *server, unsigned port)
 
    runloop_msg_queue_push(
          msg_hash_to_str(MSG_NETPLAY_FAILED),
-         0, 180, false);
+         0, 180, false,
+         NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
    return false;
 }
 
@@ -1558,7 +1577,7 @@ bool netplay_driver_ctl(enum rarch_netplay_ctl_state state, void *data)
             if (discord_is_inited)
             {
                discord_userdata_t userdata;
-               userdata.status = DISCORD_PRESENCE_NETPLAY_HOSTING_STOPPED;
+               userdata.status = DISCORD_PRESENCE_NETPLAY_NETPLAY_STOPPED;
                command_event(CMD_EVENT_DISCORD_UPDATE, &userdata);
             }
 #endif

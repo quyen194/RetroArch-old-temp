@@ -37,7 +37,7 @@
 #include <android/log.h>
 #endif
 
-#if _WIN32
+#if defined(_WIN32) && !defined(_XBOX)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
@@ -68,10 +68,12 @@ static void* log_file_buf        = NULL;
 static bool main_verbosity       = false;
 static bool log_file_initialized = false;
 
+#ifdef HAVE_LIBNX
+static Mutex logging_mtx;
 #ifdef NXLINK
-static Mutex nxlink_mtx;
 bool nxlink_connected = false;
-#endif
+#endif /* NXLINK */
+#endif /* HAVE_LIBNX */
 
 void verbosity_enable(void)
 {
@@ -96,6 +98,11 @@ bool verbosity_is_enabled(void)
    return main_verbosity;
 }
 
+bool is_logging_to_file(void)
+{
+   return log_file_initialized;
+}
+
 bool *verbosity_get_ptr(void)
 {
    return &main_verbosity;
@@ -106,21 +113,28 @@ void *retro_main_log_file(void)
    return log_file_fp;
 }
 
-void retro_main_log_file_init(const char *path)
+void retro_main_log_file_init(const char *path, bool append)
 {
    if (log_file_initialized)
       return;
 
-#ifdef NXLINK
-   if (path == NULL && nxlink_connected)
-       mutexInit(&nxlink_mtx);
+#ifdef HAVE_LIBNX
+   mutexInit(&logging_mtx);
 #endif
 
    log_file_fp          = stderr;
    if (path == NULL)
       return;
 
-   log_file_fp          = (FILE*)fopen_utf8(path, "wb");
+   log_file_fp          = (FILE*)fopen_utf8(path, append ? "ab" : "wb");
+
+   if (!log_file_fp)
+   {
+      log_file_fp       = stderr;
+      RARCH_ERR("Failed to open system event log file: %s\n", path);
+      return;
+   }
+
    log_file_initialized = true;
 
 #if !defined(PS2) /* TODO: PS2 IMPROVEMENT */
@@ -132,7 +146,7 @@ void retro_main_log_file_init(const char *path)
 
 void retro_main_log_file_deinit(void)
 {
-   if (log_file_fp && log_file_fp != stderr)
+   if (log_file_fp && log_file_initialized)
    {
       fclose(log_file_fp);
       log_file_fp = NULL;
@@ -140,6 +154,8 @@ void retro_main_log_file_deinit(void)
    if (log_file_buf)
       free(log_file_buf);
    log_file_buf = NULL;
+
+   log_file_initialized = false;
 }
 
 #if !defined(HAVE_LOGGER)
@@ -169,8 +185,8 @@ void RARCH_LOG_V(const char *tag, const char *fmt, va_list ap)
 #elif defined(_XBOX1)
    {
       /* FIXME: Using arbitrary string as fmt argument is unsafe. */
-      char msg_new[1024];
-      char buffer[1024];
+      char msg_new[256];
+      char buffer[256];
 
       msg_new[0] = buffer[0] = '\0';
       snprintf(msg_new, sizeof(msg_new), "%s: %s %s",
@@ -190,22 +206,25 @@ void RARCH_LOG_V(const char *tag, const char *fmt, va_list ap)
          else if (string_is_equal(file_path_str(FILE_PATH_LOG_ERROR), tag))
             prio = ANDROID_LOG_ERROR;
       }
-      __android_log_vprint(prio,
-            file_path_str(FILE_PATH_PROGRAM_NAME),
-            fmt,
-            ap);
+
+      if (log_file_initialized)
+      {
+         vfprintf(log_file_fp, fmt, ap);
+         fflush(log_file_fp);
+      }
+      else
+         __android_log_vprint(prio,
+               file_path_str(FILE_PATH_PROGRAM_NAME),
+               fmt,
+               ap);
    }
 #else
 
    {
 #if defined(HAVE_QT) || defined(__WINRT__)
-      char buffer[1024];
+      char buffer[256];
 #endif
-#ifdef HAVE_FILE_LOGGER
       FILE *fp = (FILE*)retro_main_log_file();
-#else
-      FILE *fp = stderr;
-#endif
 
 #if defined(HAVE_QT) || defined(__WINRT__)
       buffer[0] = '\0';
@@ -225,9 +244,8 @@ void RARCH_LOG_V(const char *tag, const char *fmt, va_list ap)
       OutputDebugStringA(buffer);
 #endif
 #else
-#if defined(NXLINK) && !defined(HAVE_FILE_LOGGER)
-          if (nxlink_connected)
-             mutexLock(&nxlink_mtx);
+#if defined(HAVE_LIBNX)
+      mutexLock(&logging_mtx);
 #endif
       if (fp)
       {
@@ -236,9 +254,8 @@ void RARCH_LOG_V(const char *tag, const char *fmt, va_list ap)
          vfprintf(fp, fmt, ap);
          fflush(fp);
       }
-#if defined(NXLINK) && !defined(HAVE_FILE_LOGGER)
-      if (nxlink_connected)
-         mutexUnlock(&nxlink_mtx);
+#if defined(HAVE_LIBNX)
+      mutexUnlock(&logging_mtx);
 #endif
 
 #endif
@@ -252,9 +269,9 @@ void RARCH_LOG_BUFFER(uint8_t *data, size_t size)
    int padding     = size % 16;
    uint8_t buf[16] = {0};
 
-   RARCH_LOG("== %d-byte buffer ==================\n", size);
+   RARCH_LOG("== %d-byte buffer ==================\n", (int)size);
 
-   for(i = 0, offset = 0; i < size; i++)
+   for (i = 0, offset = 0; i < size; i++)
    {
       buf[offset] = data[i];
       offset++;
@@ -267,9 +284,10 @@ void RARCH_LOG_BUFFER(uint8_t *data, size_t size)
             buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15]);
       }
    }
-   if(padding)
+
+   if (padding)
    {
-      for(i = padding; i < 16; i++)
+      for (i = padding; i < 16; i++)
          buf[i] = 0xff;
       RARCH_LOG("%02x%02x%02x%02x%02x%02x%02x%02x  %02x%02x%02x%02x%02x%02x%02x%02x\n",
          buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],

@@ -244,7 +244,7 @@ static void gl_cg_reset_attrib(void *data)
    cg->attribs_index = 0;
 }
 
-static bool gl_cg_set_mvp(void *data, void *shader_data,
+static bool gl_cg_set_mvp(void *shader_data,
       const void *mat_data)
 {
    cg_shader_data_t *cg = (cg_shader_data_t*)shader_data;
@@ -258,7 +258,8 @@ static bool gl_cg_set_mvp(void *data, void *shader_data,
    return false;
 }
 
-static bool gl_cg_set_coords(void *handle_data, void *shader_data, const struct video_coords *coords)
+static bool gl_cg_set_coords(void *shader_data,
+      const struct video_coords *coords)
 {
    cg_shader_data_t *cg = (cg_shader_data_t*)shader_data;
 
@@ -309,7 +310,7 @@ static void gl_cg_set_texture_info(
 static void gl_cg_set_params(void *dat, void *shader_data)
 {
    unsigned i;
-   video_shader_ctx_params_t          *params = 
+   video_shader_ctx_params_t          *params =
       (video_shader_ctx_params_t*)dat;
    unsigned width                             = params->width;
    unsigned height                            = params->height;
@@ -1210,6 +1211,11 @@ static struct video_shader *gl_cg_get_current_shader(void *data)
    return cg->shader;
 }
 
+static void gl_cg_get_flags(uint32_t *flags)
+{
+   BIT32_SET(*flags, GFX_CTX_FLAGS_SHADERS_CG);
+}
+
 const shader_backend_t gl_cg_backend = {
    gl_cg_init,
    gl_cg_init_menu_shaders,
@@ -1228,7 +1234,8 @@ const shader_backend_t gl_cg_backend = {
    gl_cg_get_feedback_pass,
    gl_cg_mipmap_input,
    gl_cg_get_current_shader,
+   gl_cg_get_flags,
 
    RARCH_SHADER_CG,
-   "gl_cg"
+   "cg"
 };

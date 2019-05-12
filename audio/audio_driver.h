@@ -142,10 +142,6 @@ typedef struct audio_driver
 
 void audio_driver_destroy_data(void);
 
-void audio_driver_set_own_driver(void);
-
-void audio_driver_unset_own_driver(void);
-
 void audio_driver_suspend(void);
 
 bool audio_driver_is_suspended(void);
@@ -236,8 +232,6 @@ bool audio_driver_start(bool is_shutdown);
 
 bool audio_driver_stop(void);
 
-bool audio_driver_owns_driver(void);
-
 void audio_driver_unset_callback(void);
 
 void audio_driver_frame_is_reverse(void);
@@ -287,6 +281,8 @@ const char *audio_driver_mixer_get_stream_name(unsigned i);
 bool compute_audio_buffer_statistics(audio_statistics_t *stats);
 
 void audio_driver_load_menu_sounds(void);
+
+const char* audio_driver_get_ident(void);
 
 extern audio_driver_t audio_rsound;
 extern audio_driver_t audio_audioio;
