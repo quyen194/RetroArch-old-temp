@@ -275,7 +275,7 @@ else ifeq ($(platform), vita)
    LIBS += -lSceDisplay_stub -lSceGxm_stub -lSceNet_stub -lSceNetCtl_stub\
            -lSceSysmodule_stub -lSceCtrl_stub -lSceHid_stub -lSceTouch_stub -lSceAudio_stub -lSceFiber_stub\
            -lScePower_stub -lSceRtc_stub -lSceCommonDialog_stub -lScePgf_stub \
-           -lSceMotion_stub -lSceAppMgr_stub -lpng -lm -lc
+           -lSceMotion_stub -lSceAppMgr_stub -lSceDriverUser_stub -lpng -lm -lc
 
    PLATOBJS += $(DEPS_DIR)/libvita2d/shader/clear_v_gxp.o \
       $(DEPS_DIR)/libvita2d/shader/clear_f_gxp.o \
